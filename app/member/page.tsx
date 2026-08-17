@@ -347,11 +347,11 @@ export default function SingleMemberPage() {
                     <span className="font-bold uppercase tracking-widest text-sm">Checked In!</span>
                   </motion.div>
                 ) : (
-                  <Scanner 
-                    onScan={handleQRScan}
-                    components={{ audio: false, zoom: false, finder: false }}
-                    styles={{ container: { width: '100%', height: '100%' } }}
-                  />
+                 <Scanner 
+  onScan={handleQRScan}
+  components={{ zoom: false, finder: false }}
+  styles={{ container: { width: '100%', height: '100%' } }}
+/>
                 )}
 
                 {/* Animated Scanner Laser Effect */}
