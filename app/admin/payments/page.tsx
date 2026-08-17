@@ -1,54 +1,165 @@
 "use client";
 
-import { CreditCard, ShieldCheck } from "lucide-react";
-import { motion } from "framer-motion";
+import { ShieldCheck, Search, User, Calendar, CheckCircle2, CreditCard, Wallet, Smartphone, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import Script from "next/script";
+import { supabase } from "@/lib/supabase";
 
 export default function PaymentsPage() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState("Razorpay (UPI/Cards)");
+  
+  // Search & Member State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<any>(null);
 
-  const handlePayment = () => {
-    if (selectedMethod !== "Razorpay (UPI/Cards)") {
-      alert(`Processing via ${selectedMethod}...`);
+  // Plans & Payment State
+  const [plans, setPlans] = useState<any[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+  const [customAmount, setCustomAmount] = useState<number>(0);
+  const [selectedMethod, setSelectedMethod] = useState("Cash (Manual)");
+
+  // Load plans on mount
+  useEffect(() => {
+    async function loadPlans() {
+      const { data } = await supabase.from("gym_plans").select("*").order("order_index", { ascending: true });
+      if (data) setPlans(data);
+    }
+    loadPlans();
+  }, []);
+
+  // Handle Live Member Search
+  useEffect(() => {
+    const searchMembers = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSearchResults([]);
+        return;
+      }
+      setIsSearching(true);
+      const { data, error } = await supabase
+        .from("members")
+        .select("*")
+        .ilike("name", `%${searchQuery}%`)
+        .limit(5);
+
+      if (!error && data) setSearchResults(data);
+      setIsSearching(false);
+    };
+
+    const debounce = setTimeout(searchMembers, 300);
+    return () => clearTimeout(debounce);
+  }, [searchQuery]);
+
+  // Handle Plan Selection Change
+  const handlePlanChange = (planId: string) => {
+    setSelectedPlanId(planId);
+    const plan = plans.find(p => p.id.toString() === planId);
+    if (plan) {
+      setCustomAmount(plan.offer_active ? plan.offer_price : plan.regular_price);
+    }
+  };
+
+  // Helper: Calculate new last_date
+  const calculateNewDate = (planTitle: string, currentLastDate: string) => {
+    const today = new Date();
+    const currentEnd = currentLastDate ? new Date(currentLastDate) : today;
+    
+    // If expired, start from today. If active, extend from current end date.
+    const baseDate = currentEnd < today ? today : currentEnd;
+    const newEnd = new Date(baseDate.getTime());
+
+    const plan = planTitle.toLowerCase();
+    if (plan.includes('year') || plan.includes('annual')) newEnd.setFullYear(newEnd.getFullYear() + 1);
+    else if (plan.includes('6 month') || plan.includes('half')) newEnd.setMonth(newEnd.getMonth() + 6);
+    else if (plan.includes('3 month') || plan.includes('quarter')) newEnd.setMonth(newEnd.getMonth() + 3);
+    else if (plan.includes('1 month') || plan.includes('monthly')) newEnd.setMonth(newEnd.getMonth() + 1);
+
+    return newEnd.toISOString().split('T')[0];
+  };
+
+  // Process the Payment & Update DB
+  const handlePayment = async () => {
+    if (!selectedMember || !selectedPlanId) {
+      alert("Please select a member and a plan first.");
       return;
     }
 
-    setIsProcessing(true);
+    const plan = plans.find(p => p.id.toString() === selectedPlanId);
+    if (!plan) return;
 
+    // IF NOT RAZORPAY (Cash/Direct UPI Override)
+    if (selectedMethod !== "Razorpay Gateway") {
+      const confirmMsg = `Are you sure you want to log a ${selectedMethod} payment of ₹${customAmount} for ${selectedMember.name}?`;
+      if (!window.confirm(confirmMsg)) return;
+      
+      await executeDatabaseRenewal(plan);
+      return;
+    }
+
+    // IF RAZORPAY GATEWAY
+    setIsProcessing(true);
     const options = {
-      key: "rzp_test_mock_key_12345", // Replace with actual Razorpay Key ID
-      amount: "120000", // Amount in paise (e.g. 1200.00)
-      currency: "USD", // Or INR
+      key: "rzp_test_TG32F5LsaeQnTH", 
+      amount: (customAmount * 100).toString(), 
+      currency: "INR", 
       name: "New Fitness Point Gym",
-      description: "Premium Yearly Membership",
-      image: "/logo.jpg",
-      handler: function (response: any) {
-        alert(`Payment Successful!\nPayment ID: ${response.razorpay_payment_id}`);
-        setIsProcessing(false);
+      description: `Admin Renewal - ${plan.title}`,
+      image: "/logo.jpeg",
+      handler: async function (response: any) {
+        alert(`Gateway Success!\nPayment ID: ${response.razorpay_payment_id}`);
+        await executeDatabaseRenewal(plan);
       },
       prefill: {
-        name: "Yagna Bhatt",
-        email: "yagna@example.com",
-        contact: "9999999999",
+        name: selectedMember.name,
+        email: selectedMember.email || "",
+        contact: selectedMember.mobile_no || selectedMember.telephone || "",
       },
-      theme: {
-        color: "#dc2626", // logo
-      },
-      modal: {
-        ondismiss: function() {
-          setIsProcessing(false);
-        }
-      }
+      theme: { color: "#e50100" },
+      modal: { ondismiss: () => setIsProcessing(false) }
     };
 
     try {
       const rzp1 = new (window as any).Razorpay(options);
       rzp1.open();
     } catch (error) {
-      console.error("Razorpay SDK not loaded", error);
-      alert("Failed to load payment gateway. Please try again.");
+      console.error("Razorpay SDK Error", error);
+      alert("Failed to load Razorpay. Check connection.");
+      setIsProcessing(false);
+    }
+  };
+
+  // The actual Supabase Update Function
+  const executeDatabaseRenewal = async (plan: any) => {
+    setIsProcessing(true);
+    try {
+      const newLastDate = calculateNewDate(plan.title, selectedMember.last_date);
+      
+      const { error } = await supabase
+        .from('members')
+        .update({
+          plan: plan.title,
+          amount: customAmount,
+          status: 'ACTIVE',
+          duration: plan.title, // or fallback to a custom duration string
+          last_date: newLastDate,
+        })
+        .eq('id', selectedMember.id);
+
+      if (error) throw error;
+      
+      alert(`Successfully renewed ${selectedMember.name} until ${newLastDate}!`);
+      
+      // Reset form
+      setSelectedMember(null);
+      setSearchQuery("");
+      setSelectedPlanId("");
+      setCustomAmount(0);
+    } catch (error: any) {
+      console.error("DB Update Error", error);
+      alert("Payment noted, but failed to update member record: " + error.message);
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -57,73 +168,187 @@ export default function PaymentsPage() {
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6 flex flex-col items-center justify-center min-h-[70vh]"
+      className="max-w-4xl mx-auto space-y-8"
     >
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
-      <div className="max-w-2xl w-full bg-gray-100 border border-gray-200 rounded-2xl p-10 shadow-2xl relative overflow-hidden">
-        {/* Subtle background glow */}
-        
-
-        <div className="text-center mb-10 relative z-10">
-          <div className="w-20 h-20 bg-logo/20 border border-logo/90/30 text-logo/90 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <ShieldCheck className="w-10 h-10" />
-          </div>
-          <h2 className="text-4xl font-black text-gray-900 tracking-tight">Process Payment</h2>
-          <p className="text-gray-500 mt-2 font-medium">Log a new payment or renew an existing membership securely.</p>
+      <div className="flex items-center gap-4 border-b border-gray-200 pb-6">
+        <div className="w-14 h-14 bg-logo/10 border border-logo/20 text-logo rounded-2xl flex items-center justify-center shadow-sm">
+          <ShieldCheck className="w-7 h-7" />
         </div>
-        
-        <form className="space-y-8 relative z-10" onSubmit={(e) => { e.preventDefault(); handlePayment(); }}>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-500 block mb-3">Member ID</label>
-              <input type="text" placeholder="e.g. NP-1042" className="w-full px-5 py-4 rounded-xl border border-gray-200 bg-gray-100 text-gray-900 focus:outline-none focus:border-logo focus:ring-1 focus:ring-logo transition-colors placeholder:text-gray-600" />
-            </div>
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-500 block mb-3">Plan Selection</label>
-              <select className="w-full px-5 py-4 rounded-xl border border-gray-200 bg-[#121212] text-gray-900 focus:outline-none focus:border-logo focus:ring-1 focus:ring-logo appearance-none font-medium transition-colors">
-                <option>Premium Yearly ($1200)</option>
-                <option>Monthly Basic ($50)</option>
-                <option>Cardio Special ($30)</option>
-              </select>
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tighter uppercase">ADMIN OVERRIDE</h1>
+          <p className="text-gray-500 font-medium text-sm">Process manual payments and force renewals for members.</p>
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-8 items-start">
+        {/* LEFT COLUMN: Search & Member Selection */}
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 shadow-sm space-y-6 relative z-20">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">1. Find Member</h3>
+            
+            {!selectedMember ? (
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Search className="w-5 h-5 text-gray-400" />
+                </div>
+                <input 
+                  type="text" 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name..." 
+                  className="w-full pl-12 pr-4 py-4 rounded-xl border border-gray-200 bg-white text-gray-900 focus:outline-none focus:border-logo focus:ring-1 focus:ring-logo transition-colors placeholder:text-gray-400 shadow-sm" 
+                />
+                
+                {/* Search Results Dropdown */}
+                <AnimatePresence>
+                  {searchQuery.length > 1 && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-50"
+                    >
+                      {isSearching ? (
+                        <div className="p-4 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">Searching...</div>
+                      ) : searchResults.length > 0 ? (
+                        searchResults.map(member => (
+                          <div 
+                            key={member.id}
+                            onClick={() => {
+                              setSelectedMember(member);
+                              setSearchQuery("");
+                              setSearchResults([]);
+                            }}
+                            className="p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer flex justify-between items-center transition-colors"
+                          >
+                            <div>
+                              <p className="font-black text-gray-900 uppercase">{member.name}</p>
+                              <p className="text-xs text-gray-500 font-medium">{member.mobile_no || member.email || "No contact info"}</p>
+                            </div>
+                            <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm ${member.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {member.status || "UNKNOWN"}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">No members found</div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              /* Selected Member Card */
+              <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative overflow-hidden">
+                <button 
+                  onClick={() => setSelectedMember(null)}
+                  className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors bg-gray-50 hover:bg-red-50 rounded-full p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                    <User className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-gray-900 uppercase tracking-wide">{selectedMember.name}</h4>
+                    <p className="text-xs font-medium text-gray-500">{selectedMember.email || selectedMember.mobile_no}</p>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 grid grid-cols-2 gap-2 text-xs border border-gray-100">
+                  <div>
+                    <span className="block text-gray-400 font-bold uppercase tracking-widest mb-1">Current Plan</span>
+                    <span className="font-black text-gray-700 uppercase">{selectedMember.plan || "None"}</span>
+                  </div>
+                  <div>
+                    <span className="block text-gray-400 font-bold uppercase tracking-widest mb-1">Due Date</span>
+                    <span className={`font-black uppercase flex items-center gap-1 ${new Date(selectedMember.last_date) < new Date() ? 'text-logo' : 'text-green-600'}`}>
+                      <Calendar className="w-3 h-3" />
+                      {selectedMember.last_date ? new Date(selectedMember.last_date).toLocaleDateString() : "N/A"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Payment Details (Only active if member selected) */}
+        <div className={`space-y-6 transition-all duration-300 ${!selectedMember ? 'opacity-40 pointer-events-none grayscale' : 'opacity-100'}`}>
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">2. Renewal Plan</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <select 
+                  value={selectedPlanId}
+                  onChange={(e) => handlePlanChange(e.target.value)}
+                  className="w-full px-4 py-4 rounded-xl border border-gray-200 bg-white text-gray-900 font-black uppercase focus:outline-none focus:border-logo focus:ring-1 focus:ring-logo appearance-none cursor-pointer shadow-sm"
+                >
+                  <option value="" disabled>-- Select a Plan --</option>
+                  {plans.map(p => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-2 relative">
+                <span className="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-500 font-black">₹</span>
+                <input 
+                  type="number" 
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(Number(e.target.value))}
+                  className="w-full pl-8 pr-4 py-4 rounded-xl border border-gray-200 bg-white text-gray-900 font-black text-lg focus:outline-none focus:border-logo focus:ring-1 focus:ring-logo shadow-sm"
+                />
+                <span className="absolute -top-2.5 right-4 bg-white px-2 text-[10px] font-bold uppercase tracking-widest text-logo">Amount Override</span>
+              </div>
             </div>
           </div>
-          
+
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider text-gray-500 block mb-3">Payment Method</label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {['Razorpay (UPI/Cards)', 'Cash', 'Bank Transfer'].map(method => (
+            <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">3. Payment Method</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { name: 'Cash (Manual)', icon: Wallet },
+                { name: 'UPI (Manual)', icon: Smartphone },
+                { name: 'Razorpay Gateway', icon: CreditCard }
+              ].map(method => (
                 <div 
-                  key={method} 
-                  onClick={() => setSelectedMethod(method)}
-                  className={`border rounded-xl p-5 text-center cursor-pointer transition-all ${
-                    selectedMethod === method 
-                      ? "border-logo bg-logo/10 shadow-lg" 
-                      : "border-gray-200 bg-gray-100 hover:border-white/30"
+                  key={method.name} 
+                  onClick={() => setSelectedMethod(method.name)}
+                  className={`border rounded-xl p-3 text-center cursor-pointer transition-all flex flex-col items-center gap-2 ${
+                    selectedMethod === method.name 
+                      ? "border-logo bg-logo/5 shadow-md" 
+                      : "border-gray-200 bg-white hover:border-gray-300"
                   }`}
                 >
-                  <span className={`font-bold text-sm ${selectedMethod === method ? "text-logo/90" : "text-gray-600"}`}>
-                    {method}
+                  <method.icon className={`w-5 h-5 ${selectedMethod === method.name ? "text-logo" : "text-gray-400"}`} />
+                  <span className={`font-bold text-[10px] uppercase tracking-wider ${selectedMethod === method.name ? "text-logo" : "text-gray-500"}`}>
+                    {method.name.split(' ')[0]}
                   </span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="pt-8 border-t border-gray-200">
+          <div className="pt-4 border-t border-gray-200">
             <button 
-              type="submit"
-              disabled={isProcessing}
-              className={`w-full text-gray-900 font-black text-lg uppercase tracking-widest rounded-xl py-5 shadow-lg transition-all ${
-                isProcessing 
-                  ? "bg-gray-600 cursor-not-allowed" 
-                  : "bg-logo hover:bg-logo/80 shadow-lg hover:shadow-lg hover:-translate-y-1"
+              onClick={handlePayment}
+              disabled={isProcessing || !selectedMember || !selectedPlanId}
+              className={`w-full text-white font-black text-sm uppercase tracking-widest rounded-xl py-5 shadow-lg transition-all flex items-center justify-center gap-2 ${
+                isProcessing || !selectedMember || !selectedPlanId
+                  ? "bg-gray-300 cursor-not-allowed text-gray-500 shadow-none" 
+                  : "bg-logo hover:bg-red-700 hover:shadow-xl hover:-translate-y-1"
               }`}
             >
-              {isProcessing ? "Processing..." : `Pay Securely via ${selectedMethod.split(' ')[0]}`}
+              {isProcessing ? (
+                <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <><CheckCircle2 className="w-5 h-5" /> Confirm & Renew</>
+              )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </motion.div>
   );

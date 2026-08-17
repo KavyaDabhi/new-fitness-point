@@ -2,18 +2,74 @@
 
 import { Search, QrCode, Scan, Camera } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-
-const recentCheckIns = [
-  { id: "1", name: "Yagna Bhatt", time: "10:45 AM", plan: "Premium Yearly", status: "Active" },
-  { id: "2", name: "Nishit Champaneria", time: "10:32 AM", plan: "Monthly Basic", status: "Active" },
-  { id: "3", name: "Moksh Chavada", time: "10:15 AM", plan: "Cardio Special", status: "Expired" },
-  { id: "4", name: "Heer Desai", time: "09:58 AM", plan: "Premium Yearly", status: "Active" },
-];
+import { supabase } from "@/lib/supabase"; // Ensure this matches your Supabase client path
 
 export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState<"manual" | "scanner" | "generate">("scanner");
+  const [recentCheckIns, setRecentCheckIns] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [manualSearchQuery, setManualSearchQuery] = useState("");
+
+  useEffect(() => {
+    async function fetchLiveAttendance() {
+      try {
+        // Attempt to fetch from an 'attendance' table joining with 'members'
+        const { data, error } = await supabase
+          .from("attendance")
+          .select(`
+            id,
+            check_in_time,
+            members (
+              name
+            )
+          `)
+          .order("check_in_time", { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+
+        if (data) {
+          const formattedData = data.map((record: any) => {
+            const timeObj = new Date(record.check_in_time);
+            return {
+              id: record.id,
+              name: record.members?.name || "Unknown Member",
+              time: timeObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              plan: "Standard", // Placeholder until plan columns are added to members
+              status: "Active",
+            };
+          });
+          setRecentCheckIns(formattedData);
+        }
+      } catch (error) {
+        console.log("No attendance table found yet. Using fallback data.");
+        // Fallback data so the UI doesn't break before the database table is ready
+        setRecentCheckIns([
+          { id: "1", name: "Yagna Bhatt", time: "10:45 AM", plan: "Premium Yearly", status: "Active" },
+          { id: "2", name: "Nishit Champaneria", time: "10:32 AM", plan: "Monthly Basic", status: "Active" },
+          { id: "3", name: "Moksh Chavada", time: "10:15 AM", plan: "Cardio Special", status: "Expired" },
+          { id: "4", name: "Heer Desai", time: "09:58 AM", plan: "Premium Yearly", status: "Active" },
+        ]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchLiveAttendance();
+
+    // Optional: Set up an interval to poll for new check-ins every 30 seconds
+    const interval = setInterval(fetchLiveAttendance, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleManualEntry = async () => {
+    if (!manualSearchQuery) return;
+    // Logic to insert a new attendance record will go here
+    console.log("Attempting to authorize:", manualSearchQuery);
+    setManualSearchQuery("");
+  };
 
   return (
     <motion.div 
@@ -38,39 +94,42 @@ export default function AttendancePage() {
             </div>
           </div>
           <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar">
-            <table className="w-full text-left">
-              <thead className="sticky top-0 bg-gray-50/90 backdrop-blur-sm z-10">
-                <tr>
-                  <th className="text-[11px] font-bold uppercase tracking-wider text-gray-500 pb-3">Member</th>
-                  <th className="text-[11px] font-bold uppercase tracking-wider text-gray-500 pb-3">Time</th>
-                  <th className="text-[11px] font-bold uppercase tracking-wider text-gray-500 pb-3">Status</th>
-                </tr>
-              </thead>
-              <tbody className="text-sm">
-                {recentCheckIns.map((row) => (
-                  <tr key={row.id} className="border-b border-white/5 hover:bg-gray-100 transition-colors">
-                    <td className="py-4">
-                      <div className="font-bold text-gray-900">{row.name}</div>
-                      <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">{row.plan}</div>
-                    </td>
-                    <td className="py-4 font-medium text-gray-500">{row.time}</td>
-                    <td className="py-4">
-                      <span className={`inline-flex px-2 py-1 rounded text-[10px] font-bold tracking-wider uppercase border ${
-                        row.status === "Active" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-logo/90/10 text-logo/70 border-logo/90/20"
-                      }`}>
-                        {row.status}
-                      </span>
-                    </td>
+            {isLoading ? (
+              <div className="text-center text-gray-500 text-sm py-10 font-medium">Loading stream...</div>
+            ) : (
+              <table className="w-full text-left">
+                <thead className="sticky top-0 bg-gray-100 backdrop-blur-sm z-10">
+                  <tr>
+                    <th className="text-[11px] font-bold uppercase tracking-wider text-gray-500 pb-3">Member</th>
+                    <th className="text-[11px] font-bold uppercase tracking-wider text-gray-500 pb-3">Time</th>
+                    <th className="text-[11px] font-bold uppercase tracking-wider text-gray-500 pb-3">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="text-sm">
+                  {recentCheckIns.map((row) => (
+                    <tr key={row.id} className="border-b border-gray-200 hover:bg-white transition-colors">
+                      <td className="py-4">
+                        <div className="font-bold text-gray-900">{row.name}</div>
+                        <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">{row.plan}</div>
+                      </td>
+                      <td className="py-4 font-medium text-gray-500">{row.time}</td>
+                      <td className="py-4">
+                        <span className={`inline-flex px-2 py-1 rounded text-[10px] font-bold tracking-wider uppercase border ${
+                          row.status === "Active" ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-red-500/10 text-red-600 border-red-500/20"
+                        }`}>
+                          {row.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
         {/* Action Panel */}
         <div className="bg-gray-100/50 border border-gray-200 rounded-3xl p-8 flex flex-col h-[600px] relative overflow-hidden shadow-2xl">
-          
           
           {/* Tab Navigation */}
           <div className="flex bg-white/40 p-1.5 rounded-2xl mb-8 relative z-10">
@@ -84,8 +143,8 @@ export default function AttendancePage() {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-bold uppercase tracking-wider rounded-xl transition-all ${
                   activeTab === tab.id 
-                    ? "bg-logo text-gray-900 shadow-lg" 
-                    : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                    ? "bg-black text-white shadow-lg" 
+                    : "text-gray-500 hover:text-gray-900 hover:bg-white/60"
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
@@ -107,20 +166,20 @@ export default function AttendancePage() {
                   className="h-full flex flex-col items-center justify-center text-center"
                 >
                   <div className="relative w-64 h-64 bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-2xl mb-8 flex items-center justify-center group">
-                    <Camera className="w-12 h-12 text-gray-700 absolute z-0" />
+                    <Camera className="w-12 h-12 text-gray-300 absolute z-0" />
                     
                     {/* Simulated Scanner UI */}
-                    <div className="absolute inset-4 border-2 border-dashed border-logo/90/50 rounded-2xl z-10"></div>
+                    <div className="absolute inset-4 border-2 border-dashed border-gray-300 rounded-2xl z-10"></div>
                     
                     {/* Scanning Laser Animation */}
                     <motion.div 
                       animate={{ y: [0, 200, 0] }}
                       transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
-                      className="absolute top-4 left-4 right-4 h-0.5 bg-logo/90 shadow-lg z-20"
+                      className="absolute top-4 left-4 right-4 h-0.5 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] z-20"
                     />
                     
                     <div className="absolute inset-0 bg-white/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30 backdrop-blur-sm">
-                      <button className="bg-logo text-gray-900 px-6 py-2 rounded-full font-bold text-sm tracking-wider shadow-lg">
+                      <button className="bg-black text-white px-6 py-2 rounded-full font-bold text-sm tracking-wider shadow-lg">
                         Activate Camera
                       </button>
                     </div>
@@ -145,23 +204,23 @@ export default function AttendancePage() {
                     <p className="text-gray-500 text-sm font-medium">Generate a temporary QR code for guests or members without the app.</p>
                   </div>
                   
-                  <div className="flex-1 flex flex-col items-center justify-center bg-gray-100 border border-gray-200 rounded-2xl p-8">
-                    <div className="bg-white p-4 rounded-2xl shadow-xl mb-6">
+                  <div className="flex-1 flex flex-col items-center justify-center bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+                    <div className="bg-gray-50 p-4 rounded-2xl shadow-inner mb-6 border border-gray-100">
                       <QRCodeSVG 
                         value="https://new-fitness-point.com/verify/daily-pass/TMP-98231" 
                         size={160} 
-                        bgColor="#ffffff"
+                        bgColor="transparent"
                         fgColor="#000000"
                         level="Q"
                       />
                     </div>
                     <div className="text-center">
-                      <p className="text-gray-900 font-bold text-lg">TMP-98231</p>
-                      <p className="text-logo/70 text-xs font-bold uppercase tracking-widest mt-1">Expires in 24 Hours</p>
+                      <p className="text-gray-900 font-black text-xl">TMP-98231</p>
+                      <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mt-1">Expires in 24 Hours</p>
                     </div>
                   </div>
                   
-                  <button className="w-full bg-white text-black font-black text-sm uppercase tracking-widest rounded-xl py-4 mt-6 hover:bg-gray-200 transition-all">
+                  <button className="w-full bg-black text-white font-black text-sm uppercase tracking-widest rounded-xl py-4 mt-6 hover:bg-gray-800 transition-all shadow-lg">
                     Generate New Code
                   </button>
                 </motion.div>
@@ -177,7 +236,7 @@ export default function AttendancePage() {
                   className="h-full flex flex-col justify-center"
                 >
                   <div className="mb-8 text-center">
-                    <div className="w-16 h-16 bg-logo/20 text-logo/90 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <div className="w-16 h-16 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                       <Search className="w-8 h-8" />
                     </div>
                     <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-2">Manual Override</h3>
@@ -189,11 +248,16 @@ export default function AttendancePage() {
                       <label className="text-xs font-bold uppercase tracking-wider text-gray-500 block mb-2">Member ID or Name</label>
                       <input 
                         type="text" 
-                        placeholder="e.g. NP-1042 or Yagna Bhatt"
-                        className="w-full px-5 py-4 text-sm bg-gray-100 border border-gray-200 rounded-xl outline-none focus:border-logo focus:ring-1 focus:ring-logo transition-all text-gray-900 placeholder:text-gray-600"
+                        value={manualSearchQuery}
+                        onChange={(e) => setManualSearchQuery(e.target.value)}
+                        placeholder="e.g. Yagna Bhatt"
+                        className="w-full px-5 py-4 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-black focus:ring-1 focus:ring-black transition-all text-gray-900 placeholder:text-gray-400 shadow-sm"
                       />
                     </div>
-                    <button className="w-full bg-logo hover:bg-logo/80 text-gray-900 font-black text-sm uppercase tracking-widest rounded-xl py-4 shadow-lg hover:shadow-lg transition-all">
+                    <button 
+                      onClick={handleManualEntry}
+                      className="w-full bg-black hover:bg-gray-800 text-white font-black text-sm uppercase tracking-widest rounded-xl py-4 shadow-lg hover:shadow-xl transition-all"
+                    >
                       Authorize Entry
                     </button>
                   </div>

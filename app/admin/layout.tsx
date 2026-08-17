@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Search, Home, Users, CalendarCheck, Dumbbell, CreditCard, FileText, LogOut } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase"; // Make sure this path is correct
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -12,21 +13,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const auth = localStorage.getItem("adminAuth");
-    if (auth === "true") {
-      setIsAuthenticated(true);
-    } else {
-      router.push("/login");
-    }
+    // Check Supabase for an active session instead of localStorage
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        setIsAuthenticated(true);
+      } else {
+        router.push("/login");
+      }
+    };
+
+    checkAuth();
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminAuth");
+  const handleLogout = async () => {
+    // Sign out from Supabase securely
+    await supabase.auth.signOut();
     router.push("/login");
   };
 
   if (!isAuthenticated) {
-    return <div className="min-h-screen bg-white flex items-center justify-center text-gray-900">Loading secure environment...</div>;
+    return <div className="min-h-screen bg-white flex items-center justify-center text-gray-900 font-bold tracking-wider">Verifying secure environment...</div>;
   }
 
   const navLinks = [
@@ -61,7 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 href={link.href} 
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
                   isActive 
-                    ? "bg-logo text-gray-900 shadow-lg" 
+                    ? "bg-logo text-white shadow-lg" 
                     : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
                 }`}
               >
@@ -84,7 +92,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <button 
             onClick={handleLogout}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-logo/70 hover:bg-logo/90/10 transition-colors"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-logo/70 hover:bg-logo/10 transition-colors"
           >
             <LogOut className="w-4 h-4" /> Sign Out
           </button>
@@ -108,8 +116,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         
         {/* Scrollable Page Content */}
         <main className="flex-1 overflow-y-auto p-8 relative">
-           {/* Subtle background glow effect */}
-           
            <div className="relative z-10 w-full max-w-7xl mx-auto">
              {children}
            </div>

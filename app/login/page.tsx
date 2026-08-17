@@ -4,9 +4,89 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, User, Lock, Mail } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase"; 
 
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+ const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    if (isLogin) {
+      // SIGN IN LOGIC
+      const { data, error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
+      });
+      
+      if (error) {
+        alert(error.message);
+      } else {
+        localStorage.setItem("userAuth", "true");
+        
+        if (email.toLowerCase() === "dabhikavy189@gmail.com") {
+          router.push("/admin");
+        } else {
+          router.push("/member");
+        }
+      }
+    } else {
+      // SIGN UP LOGIC
+
+      // 1. Verify the user exists in the members table (Case-Insensitive)
+      // Removed .maybeSingle() to prevent crashes if there are duplicate names
+      const { data: memberDataList, error: memberError } = await supabase
+        .from('members')
+        .select('id, name')
+        .ilike('name', fullName);
+
+      // If Supabase throws an error, we will now see EXACTLY what it is
+      if (memberError) {
+        console.error("Supabase Error:", memberError);
+        alert(`Error checking directory: ${memberError.message}`);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Reject if the member is not found in the database
+      if (!memberDataList || memberDataList.length === 0) {
+        alert("Member not found in the gym directory. Please check the spelling of your name or contact the admin.");
+        setLoading(false);
+        return;
+      }
+
+      // Take the first match in case there are duplicates
+      const memberData = memberDataList[0]; 
+
+      // 3. If member is found, proceed with creating the Auth account
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: { 
+          data: { 
+            full_name: memberData.name, 
+            member_id: memberData.id    
+          } 
+        }
+      });
+      
+      if (error) {
+        alert(error.message);
+      } else {
+        alert("Account created successfully! You can now log in.");
+        setIsLogin(true);
+        setPassword(""); 
+      }
+    }
+    setLoading(false);
+  };
 
   return (
     <div className="w-full flex flex-col items-center justify-center min-h-[85vh] px-4 py-12">
@@ -32,7 +112,7 @@ export default function Login() {
             </p>
           </div>
 
-          <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+          <form className="space-y-5" onSubmit={handleAuth}>
             {!isLogin && (
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Full Name</label>
@@ -42,7 +122,10 @@ export default function Login() {
                   </div>
                   <input 
                     type="text" 
-                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="e.g. Kavya Dabhi"
+                    required={!isLogin}
                     className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:border-logo/60 focus:ring-1 focus:ring-logo/60 transition-all placeholder:text-gray-600"
                   />
                 </div>
@@ -57,7 +140,10 @@ export default function Login() {
                 </div>
                 <input 
                   type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
+                  required
                   className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:border-logo/60 focus:ring-1 focus:ring-logo/60 transition-all placeholder:text-gray-600"
                 />
               </div>
@@ -74,7 +160,10 @@ export default function Login() {
                 </div>
                 <input 
                   type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  required
                   className="w-full bg-black/40 border border-white/10 text-white rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:border-logo/60 focus:ring-1 focus:ring-logo/60 transition-all placeholder:text-gray-600"
                 />
               </div>
@@ -83,15 +172,21 @@ export default function Login() {
             <motion.button 
               whileHover={{ y: -2, boxShadow: "0px 10px 20px rgba(229, 1, 0, 0.4)" }}
               whileTap={{ scale: 0.98 }}
-              className="w-full bg-logo text-white py-4 rounded-xl font-black uppercase tracking-widest mt-4 border border-red-500/50 shadow-lg hover:bg-logo/90 transition-all"
+              disabled={loading}
+              className="w-full bg-logo text-white py-4 rounded-xl font-black uppercase tracking-widest mt-4 border border-red-500/50 shadow-lg hover:bg-logo/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLogin ? "Sign In" : "Create Account"}
+              {loading ? "Processing..." : isLogin ? "Sign In" : "Create Account"}
             </motion.button>
           </form>
 
           <div className="mt-8 text-center">
             <button 
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setEmail("");
+                setPassword("");
+                setFullName("");
+              }}
               className="text-sm text-gray-400 hover:text-white transition-colors"
             >
               {isLogin ? "Don't have an account? " : "Already have an account? "}
