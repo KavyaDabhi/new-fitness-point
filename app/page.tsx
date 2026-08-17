@@ -643,6 +643,10 @@ export default function Home() {
                   <p className="text-gray-400 leading-relaxed font-medium">
                     Rajesh Mishra<br/>
                     +91 98240 30321
+                    Smith Mishra<br/>
+                    +91 6358 222800
+                    NFP Gym <br/>
+                    80000 41999
                   </p>
                 </div>
               </div>
