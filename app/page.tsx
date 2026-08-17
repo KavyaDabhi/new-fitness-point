@@ -633,21 +633,30 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Phone */}
+              {/* --- NEW UPDATED PHONE SECTION --- */}
               <div className="flex items-start gap-6 group">
                 <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-logo/10 group-hover:border-logo/50 group-hover:-translate-y-1 transition-all duration-300 shadow-lg">
                   <Phone className="w-6 h-6 text-logo" />
                 </div>
                 <div>
-                  <h4 className="text-white font-bold uppercase tracking-widest text-sm mb-2">Contact</h4>
-                  <p className="text-gray-400 leading-relaxed font-medium">
-                    Rajesh Mishra<br/>
-                    +91 98240 30321
-                    Smith Mishra<br/>
-                    +91 6358 222800
-                    NFP Gym <br/>
-                    80000 41999
-                  </p>
+                  <h4 className="text-white font-bold uppercase tracking-widest text-sm mb-4">Contact</h4>
+                  
+                  {/* Using flex-col and gap instead of <br/> tags makes it clean and beautiful */}
+                  <div className="text-gray-400 leading-relaxed font-medium flex flex-col gap-4">
+                    <div>
+                      <span className="text-white font-bold block">Rajesh Mishra</span>
+                      <span>+91 98240 30321</span>
+                    </div>
+                    <div>
+                      <span className="text-white font-bold block">Smith Mishra</span>
+                      <span>+91 6358 222800</span>
+                    </div>
+                    <div>
+                      <span className="text-white font-bold block">NFP Gym Front Desk</span>
+                      <span>80000 41999</span>
+                    </div>
+                  </div>
+                  
                 </div>
               </div>
 
