@@ -117,12 +117,10 @@ export default function SingleMemberPage() {
 
   // --- UPI DEEP LINK LOGIC ---
   const handleUPIIntent = (appType: string) => {
-    // UPDATED WITH YOUR REAL GYM UPI ID
     const upiId = "9824030321@okbizaxis"; 
     const gymName = "New Fitness Point Gym";
     const amount = memberData.amount || 7000;
     
-    // Creates a clean note for your bank statement
     const note = `Renewal_${memberData.name?.replace(/\s+/g, '_')}`;
 
     let upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(gymName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
@@ -135,7 +133,6 @@ export default function SingleMemberPage() {
       upiLink = `paytmmp://pay?pa=${upiId}&pn=${encodeURIComponent(gymName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(note)}`;
     }
 
-    // Opens the app natively on their phone
     window.location.href = upiLink;
   };
 
@@ -193,10 +190,6 @@ export default function SingleMemberPage() {
     setIsProcessing(false);
   };
 
-  // ==========================================
-  // EARLY RETURNS 
-  // ==========================================
-  
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center py-20">
@@ -209,7 +202,6 @@ export default function SingleMemberPage() {
   if (!memberData) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-red-900/20 via-[#0a0a0a] to-[#0a0a0a] py-10 px-4 flex flex-col items-center relative overflow-hidden">
-        {/* Navigation for Error State so you aren't trapped */}
         <div className="w-full max-w-[900px] z-20 flex justify-end items-center mb-12 font-sans">
           <button 
             onClick={handleLogout}
@@ -228,14 +220,8 @@ export default function SingleMemberPage() {
     );
   }
 
-  // ==========================================
-  // CALCULATIONS (SAFE TO RUN NOW)
-  // ==========================================
-
-  // Smart Date Calculation Engine
   const calculateDynamicDueDate = (joinDateStr: string, planStr: string, dbLastDate: string) => {
     if (!joinDateStr || !planStr) return dbLastDate;
-
     const start = new Date(joinDateStr);
     if (isNaN(start.getTime())) return dbLastDate;
 
@@ -253,7 +239,6 @@ export default function SingleMemberPage() {
     } else {
       return dbLastDate;
     }
-
     return end.toISOString();
   };
 
@@ -347,14 +332,13 @@ export default function SingleMemberPage() {
                     <span className="font-bold uppercase tracking-widest text-sm">Checked In!</span>
                   </motion.div>
                 ) : (
-                 <Scanner 
-  onScan={handleQRScan}
-  components={{ zoom: false, finder: false }}
-  styles={{ container: { width: '100%', height: '100%' } }}
-/>
+                  <Scanner 
+                    onScan={handleQRScan}
+                    components={{ zoom: false, finder: false }}
+                    styles={{ container: { width: '100%', height: '100%' } }}
+                  />
                 )}
 
-                {/* Animated Scanner Laser Effect */}
                 {scanStatus !== "success" && (
                   <motion.div 
                     animate={{ top: ["0%", "100%", "0%"] }}
@@ -373,7 +357,6 @@ export default function SingleMemberPage() {
           </motion.div>
         )}
       </AnimatePresence>
-      {/* -------------------------------- */}
 
       {/* --- TOP NAVIGATION BAR --- */}
       <div className="w-full max-w-[900px] z-20 flex justify-end items-center mb-8 gap-4 md:gap-6 font-sans">
@@ -400,10 +383,8 @@ export default function SingleMemberPage() {
       {/* Main Container */}
       <div className="w-full max-w-[900px] z-10 font-sans">
         
-        {/* Dashboard Cards (Billing & Status) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           
-          {/* Status & Progress Card */}
           <div className="bg-white/5 backdrop-blur-xl rounded-[2rem] p-8 border border-white/10 shadow-2xl col-span-1 md:col-span-2 flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-start mb-6">
@@ -417,7 +398,6 @@ export default function SingleMemberPage() {
                 </div>
               </div>
 
-              {/* Progress Bar UI */}
               <div className="mt-8 bg-black/20 p-5 rounded-2xl border border-white/5">
                 <div className="flex justify-between text-xs font-bold mb-3 uppercase tracking-wider">
                   <span className="text-gray-400 flex items-center gap-2">
@@ -438,7 +418,6 @@ export default function SingleMemberPage() {
               </div>
             </div>
 
-            {/* --- ATTENDANCE BUTTON --- */}
             <button 
               onClick={() => { setShowScanner(true); setScanStatus("scanning"); }}
               className="mt-6 w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
@@ -447,7 +426,6 @@ export default function SingleMemberPage() {
             </button>
           </div>
 
-          {/* Payment Card */}
           <div className="bg-[#111] backdrop-blur-xl border border-white/10 rounded-[2rem] p-8 shadow-2xl flex flex-col justify-between relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/10 blur-3xl rounded-full -mr-10 -mt-10 transition-all duration-500 group-hover:bg-red-600/30 group-hover:scale-150"></div>
             
@@ -462,7 +440,6 @@ export default function SingleMemberPage() {
               </p>
             </div>
 
-            {/* --- BLINKIT STYLE PAYMENT CHOOSER --- */}
             <div className="relative z-10 w-full mt-auto">
               {!showPaymentOptions ? (
                 <button 
@@ -502,7 +479,6 @@ export default function SingleMemberPage() {
           </div>
         </div>
 
-        {/* --- THE OFFICIAL GLASSMORPHIC FORM --- */}
         <div className="bg-white/5 backdrop-blur-2xl w-full rounded-[2rem] shadow-2xl p-10 md:p-14 border border-white/10 font-serif text-white selection:bg-gray-700 relative overflow-hidden">
           
           <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none overflow-hidden">
@@ -538,7 +514,6 @@ export default function SingleMemberPage() {
           </h2>
 
           <div className="space-y-8 text-[15px] font-medium leading-relaxed relative z-10">
-            {/* Full Name */}
             {memberData.name && (
               <div className="flex items-end">
                 <span className="mr-4 whitespace-nowrap text-gray-400">Full Name: -</span>
@@ -555,7 +530,6 @@ export default function SingleMemberPage() {
               </div>
             )}
 
-            {/* DOB & Age */}
             {(memberData.dob || memberData.age) && (
               <div className="flex flex-wrap md:flex-nowrap items-end justify-between gap-x-8 gap-y-6">
                 {memberData.dob && (
@@ -577,7 +551,6 @@ export default function SingleMemberPage() {
               </div>
             )}
 
-            {/* Gender & Height/Weight */}
             {(memberData.gender || memberData.height || memberData.weight) && (
               <div className="flex flex-wrap md:flex-nowrap items-end justify-between gap-x-8 gap-y-6">
                 {memberData.gender && (
@@ -608,7 +581,6 @@ export default function SingleMemberPage() {
               </div>
             )}
 
-            {/* Occupation & Blood Group */}
             {(memberData.occupation || memberData.blood_group) && (
               <div className="flex flex-wrap md:flex-nowrap items-end justify-between gap-x-8 gap-y-6">
                 {memberData.occupation && (
@@ -630,7 +602,6 @@ export default function SingleMemberPage() {
               </div>
             )}
 
-            {/* Address */}
             {memberData.address && (
               <div className="flex items-end">
                 <span className="mr-4 whitespace-nowrap text-gray-400">Address : -</span>
@@ -640,7 +611,6 @@ export default function SingleMemberPage() {
               </div>
             )}
 
-            {/* City & Pincode */}
             {(memberData.city || memberData.pincode) && (
               <div className="flex flex-wrap md:flex-nowrap items-end justify-between gap-x-8 gap-y-6">
                 {memberData.city && (
@@ -662,7 +632,6 @@ export default function SingleMemberPage() {
               </div>
             )}
 
-            {/* Telephone & Mobile */}
             {(memberData.telephone || memberData.mobile_no) && (
               <div className="flex flex-wrap md:flex-nowrap items-end justify-between gap-x-8 gap-y-6">
                 {memberData.telephone && (
@@ -684,7 +653,6 @@ export default function SingleMemberPage() {
               </div>
             )}
 
-            {/* Email */}
             {authUserEmail && (
               <div className="flex items-end">
                 <span className="mr-4 whitespace-nowrap text-gray-400">E – Mail ( ID ) : -</span>
@@ -695,7 +663,6 @@ export default function SingleMemberPage() {
             )}
           </div>
 
-          {/* Program Details Table - Render only ACTIVE plans */}
           {activePrograms.length > 0 && (
             <div className="mt-16 relative z-10">
               <h3 className="text-center font-bold mb-6 tracking-[0.2em] text-white/90 text-lg flex items-center justify-center gap-4">
@@ -735,7 +702,6 @@ export default function SingleMemberPage() {
             </div>
           )}
 
-          {/* Footer Signatures */}
           <div className="mt-24 flex flex-col sm:flex-row justify-between items-end gap-10 pb-6 relative z-10 font-sans">
             <div className="flex items-end w-full sm:w-72">
               <span className="mr-4 whitespace-nowrap text-gray-500 font-bold uppercase tracking-widest text-xs">Signature</span>
