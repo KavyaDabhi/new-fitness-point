@@ -23,7 +23,7 @@ export default function SingleMemberPage() {
   
   const router = useRouter();
 
-  useEffect(() => {
+ useEffect(() => {
     async function initPage() {
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -32,6 +32,15 @@ export default function SingleMemberPage() {
           router.push("/login");
           return;
         }
+
+        // --- NEW ADMIN BOUNCER ---
+        // 🚨 REPLACE THIS WITH YOUR EXACT LOGIN EMAIL 🚨
+        const adminEmails = ["newfitnesspointgym@gmail.com", "dabhikavy189@gmail.com"]; 
+        if (user.email && adminEmails.includes(user.email.toLowerCase())) {
+          router.push("/admin");
+          return; // Stop running the rest of the member code
+        }
+        // -------------------------
 
         setAuthUserEmail(user.email || "");
         let fetchedMember = null;

@@ -46,11 +46,20 @@ export default function Home() {
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
+ useEffect(() => {
+    // 🚨 REPLACE THIS WITH YOUR EXACT LOGIN EMAIL 🚨
+    const adminEmails = ["newfitnesspointgym@gmail.com", "dabhikavy189@gmail.com"]; 
+
     // 1. Check Auth Status
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) setActionRoute("/member");
+      if (user) {
+        if (user.email && adminEmails.includes(user.email.toLowerCase())) {
+          setActionRoute("/admin");
+        } else {
+          setActionRoute("/member");
+        }
+      }
     };
     checkUser();
 
@@ -60,12 +69,10 @@ export default function Home() {
         const { data, error } = await supabase
           .from('gym_plans')
           .select('*')
-          .eq('is_offer_active', true) // ONLY FETCH ACTIVE OFFERS
+          .eq('is_offer_active', true)
           .order('order_index', { ascending: true });
         
-        if (data && data.length > 0 && !error) {
-          setOffers(data);
-        }
+        if (data && data.length > 0 && !error) setOffers(data);
       } catch (err) {
         console.error("Error fetching offers:", err);
       }
@@ -75,8 +82,13 @@ export default function Home() {
     // 3. Auth Listener
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        if (session?.user) {
-          setActionRoute("/member");
+        const currentUser = session?.user;
+        if (currentUser) {
+          if (currentUser.email && adminEmails.includes(currentUser.email.toLowerCase())) {
+            setActionRoute("/dashboard");
+          } else {
+            setActionRoute("/member");
+          }
         } else {
           setActionRoute("/login");
         }
@@ -87,7 +99,6 @@ export default function Home() {
       authListener.subscription.unsubscribe();
     };
   }, []);
-
   // --- UPI DEEP LINK LOGIC ---
   const handleUPIIntent = (appType: string) => {
     if (!selectedPlan) return;
