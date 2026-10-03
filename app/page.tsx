@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { ArrowRight, Activity, Users, Star, MapPin, Phone, Mail, X, CreditCard } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import UpiPaymentQR from "@/components/UpiPaymentQR"; // Import the QR Component
 
 // --- PERMANENT STANDARD PLANS (ALWAYS VISIBLE) ---
 const standardPlans = [
@@ -45,10 +46,21 @@ export default function Home() {
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [showPaymentOptions, setShowPaymentOptions] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // --- DEVICE DETECTION STATES ---
+  const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
- useEffect(() => {
+  useEffect(() => {
     // 🚨 REPLACE THIS WITH YOUR EXACT LOGIN EMAIL 🚨
     const adminEmails = ["newfitnesspointgym@gmail.com", "dabhikavy189@gmail.com"]; 
+
+    // Device Detection Logic
+    setMounted(true);
+    const userAgent = window.navigator.userAgent || window.opera || "";
+    if (/android|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase())) {
+      setIsMobile(true);
+    }
 
     // 1. Check Auth Status
     const checkUser = async () => {
@@ -99,7 +111,8 @@ export default function Home() {
       authListener.subscription.unsubscribe();
     };
   }, []);
-  // --- UPI DEEP LINK LOGIC ---
+
+  // --- UPI DEEP LINK LOGIC (MOBILE ONLY) ---
   const handleUPIIntent = (appType: string) => {
     if (!selectedPlan) return;
     
@@ -187,7 +200,7 @@ export default function Home() {
   return (
     <div className="w-full flex flex-col">
       
-      {/* --- PAYMENT MODAL OVERLAY (BLINKIT STYLE) --- */}
+      {/* --- PAYMENT MODAL OVERLAY --- */}
       <AnimatePresence>
         {showPaymentOptions && selectedPlan && (
           <motion.div 
@@ -200,7 +213,7 @@ export default function Home() {
               initial={{ scale: 0.95, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
-              className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(229,1,0,0.15)] relative"
+              className="bg-[#1a1a1a] border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(229,1,0,0.15)] relative max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <button 
                 onClick={() => setShowPaymentOptions(false)}
@@ -218,25 +231,41 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col gap-3">
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">Select Payment App</p>
                 
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => handleUPIIntent('gpay')} className="bg-white/5 hover:bg-white/10 border border-white/10 py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all hover:border-white/30 hover:-translate-y-1">
-                    <span className="font-bold text-sm text-white">GPay</span>
-                  </button>
-                  
-                  <button onClick={() => handleUPIIntent('phonepe')} className="bg-white/5 hover:bg-white/10 border border-white/10 py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all hover:border-white/30 hover:-translate-y-1">
-                    <span className="font-bold text-sm text-[#5f259f] brightness-150">PhonePe</span>
-                  </button>
-                </div>
+                {/* --- DYNAMIC DEVICE RENDERING --- */}
+                {!mounted ? (
+                  <div className="h-48 animate-pulse bg-white/5 rounded-xl"></div>
+                ) : isMobile ? (
+                  <>
+                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center mb-1">Select Payment App</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => handleUPIIntent('gpay')} className="bg-white/5 hover:bg-white/10 border border-white/10 py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all hover:border-white/30 hover:-translate-y-1">
+                        <span className="font-bold text-sm text-white">GPay</span>
+                      </button>
+                      
+                      <button onClick={() => handleUPIIntent('phonepe')} className="bg-white/5 hover:bg-white/10 border border-white/10 py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all hover:border-white/30 hover:-translate-y-1">
+                        <span className="font-bold text-sm text-[#5f259f] brightness-150">PhonePe</span>
+                      </button>
+                    </div>
 
-                <button onClick={() => handleUPIIntent('paytm')} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 py-3.5 rounded-xl font-bold text-sm text-[#00b9f5] transition-all hover:border-white/30 hover:-translate-y-1">
-                  Paytm
-                </button>
+                    <button onClick={() => handleUPIIntent('paytm')} className="w-full bg-white/5 hover:bg-white/10 border border-white/10 py-3.5 rounded-xl font-bold text-sm text-[#00b9f5] transition-all hover:border-white/30 hover:-translate-y-1">
+                      Paytm
+                    </button>
 
-                <button onClick={() => handleUPIIntent('generic')} className="w-full bg-transparent hover:bg-white/5 border border-white/10 py-3.5 rounded-xl font-bold text-sm text-gray-300 transition-colors">
-                  Other UPI Apps
-                </button>
+                    <button onClick={() => handleUPIIntent('generic')} className="w-full bg-transparent hover:bg-white/5 border border-white/10 py-3.5 rounded-xl font-bold text-sm text-gray-300 transition-colors">
+                      Other UPI Apps
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex justify-center -mx-2 -mt-4 rounded-xl">
+                    <UpiPaymentQR 
+                      amount={selectedPlan.price} 
+                      planName={selectedPlan.title} 
+                      merchantUpiId="9824030321@okbizaxis" // Your exact Gym UPI ID
+                    />
+                  </div>
+                )}
+                {/* --------------------------------- */}
 
                 <div className="relative flex items-center py-4">
                   <div className="flex-grow border-t border-white/10"></div>
@@ -528,7 +557,6 @@ export default function Home() {
                     ))}
                   </ul>
                   
-                  {/* CHANGED TO MODAL TRIGGER INSTEAD OF LINK */}
                   <button 
                     onClick={() => handleSelectPlan(plan.title, plan.price)}
                     className={`w-full py-4 rounded-xl font-bold uppercase tracking-widest text-sm transition-all bg-white/10 border border-white/10 group-hover:bg-logo group-hover:border-logo text-white group-hover:shadow-[0_0_20px_rgba(229,1,0,0.4)] group-hover:-translate-y-1 ${isCenter ? 'md:py-5 rounded-full font-black' : ''}`}
@@ -596,7 +624,6 @@ export default function Home() {
                       ))}
                     </ul>
                     
-                    {/* CHANGED TO MODAL TRIGGER INSTEAD OF LINK */}
                     <button 
                       onClick={() => handleSelectPlan(offer.title, offer.offer_price)}
                       className="w-full py-4 md:py-5 rounded-full font-black uppercase tracking-widest text-sm transition-all bg-white/10 border border-white/20 hover:bg-logo hover:border-logo text-white hover:shadow-[0_0_20px_rgba(229,1,0,0.4)]"

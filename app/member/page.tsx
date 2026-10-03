@@ -23,7 +23,7 @@ export default function SingleMemberPage() {
   
   const router = useRouter();
 
- useEffect(() => {
+  useEffect(() => {
     async function initPage() {
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -93,23 +93,36 @@ export default function SingleMemberPage() {
     }
   };
 
-  // --- ATTENDANCE SCAN LOGIC ---
+  // --- ATTENDANCE SCAN LOGIC (FIXED FOR DB SYNC) ---
   const handleQRScan = async (result: any) => {
     if (result && result.length > 0 && scanStatus !== "success") {
       setScanStatus("success");
       
+      // We don't strictly need to check what the QR code says, 
+      // just scanning the gym's desk QR triggers this check-in!
       const qrData = result[0].rawValue; 
 
       try {
+        const today = new Date().toLocaleDateString('en-CA');
+        
+        // Use memberData.id to match the attendance table rules
         const { error } = await supabase
           .from("attendance")
           .insert([
             { 
-              member_email: authUserEmail,
+              member_id: memberData.id,
+              date: today
             }
           ]);
 
-        if (error) throw error;
+        if (error) {
+          // If they try to scan twice in one day, Supabase blocks it
+          if (error.code === '23505') {
+            alert("You are already checked in for today!");
+          } else {
+            throw error;
+          }
+        }
 
         setTimeout(() => {
           setShowScanner(false);

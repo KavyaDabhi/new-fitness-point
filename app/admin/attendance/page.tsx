@@ -4,7 +4,7 @@ import { Search, QrCode, Scan, Camera } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { supabase } from "@/lib/supabase"; // Ensure this matches your Supabase client path
+import { supabase } from "@/lib/supabase"; 
 
 export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState<"manual" | "scanner" | "generate">("scanner");
@@ -12,63 +12,97 @@ export default function AttendancePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [manualSearchQuery, setManualSearchQuery] = useState("");
 
-  useEffect(() => {
-    async function fetchLiveAttendance() {
-      try {
-        // Attempt to fetch from an 'attendance' table joining with 'members'
-        const { data, error } = await supabase
-          .from("attendance")
-          .select(`
-            id,
-            check_in_time,
-            members (
-              name
-            )
-          `)
-          .order("check_in_time", { ascending: false })
-          .limit(10);
+  // Extracted fetch function so we can call it after manual entry
+  const fetchLiveAttendance = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("attendance")
+        .select(`
+          id,
+          time_marked,
+          members!inner (
+            name,
+            plan,
+            status
+          )
+        `)
+        .order("time_marked", { ascending: false })
+        .limit(10);
 
-        if (error) throw error;
+      if (error) throw error;
 
-        if (data) {
-          const formattedData = data.map((record: any) => {
-            const timeObj = new Date(record.check_in_time);
-            return {
-              id: record.id,
-              name: record.members?.name || "Unknown Member",
-              time: timeObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              plan: "Standard", // Placeholder until plan columns are added to members
-              status: "Active",
-            };
-          });
-          setRecentCheckIns(formattedData);
-        }
-      } catch (error) {
-        console.log("No attendance table found yet. Using fallback data.");
-        // Fallback data so the UI doesn't break before the database table is ready
-        setRecentCheckIns([
-          { id: "1", name: "Yagna Bhatt", time: "10:45 AM", plan: "Premium Yearly", status: "Active" },
-          { id: "2", name: "Nishit Champaneria", time: "10:32 AM", plan: "Monthly Basic", status: "Active" },
-          { id: "3", name: "Moksh Chavada", time: "10:15 AM", plan: "Cardio Special", status: "Expired" },
-          { id: "4", name: "Heer Desai", time: "09:58 AM", plan: "Premium Yearly", status: "Active" },
-        ]);
-      } finally {
-        setIsLoading(false);
+      if (data) {
+        const formattedData = data.map((record: any) => {
+          const timeObj = new Date(record.time_marked);
+          return {
+            id: record.id,
+            name: record.members?.name || "Unknown Member",
+            time: timeObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            plan: record.members?.plan || "Standard", 
+            status: record.members?.status || "Active",
+          };
+        });
+        setRecentCheckIns(formattedData);
       }
+    } catch (error) {
+      console.log("Error fetching live attendance:", error);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
+  useEffect(() => {
     fetchLiveAttendance();
 
-    // Optional: Set up an interval to poll for new check-ins every 30 seconds
+    // Poll for new check-ins every 30 seconds
     const interval = setInterval(fetchLiveAttendance, 30000);
     return () => clearInterval(interval);
   }, []);
 
+  // --- NEW: FULLY FUNCTIONAL MANUAL ENTRY ---
   const handleManualEntry = async () => {
-    if (!manualSearchQuery) return;
-    // Logic to insert a new attendance record will go here
-    console.log("Attempting to authorize:", manualSearchQuery);
-    setManualSearchQuery("");
+    if (!manualSearchQuery.trim()) return;
+    
+    try {
+      // 1. Find the member by name or phone number
+      const { data: members, error: searchError } = await supabase
+        .from("members")
+        .select("id, name")
+        .or(`name.ilike.%${manualSearchQuery}%,mobile_no.eq.${manualSearchQuery}`)
+        .limit(1);
+
+      if (searchError) throw searchError;
+      
+      if (!members || members.length === 0) {
+        alert("No member found with that name or phone number.");
+        return;
+      }
+
+      const member = members[0];
+      const today = new Date().toLocaleDateString('en-CA');
+
+      // 2. Insert into attendance table
+      const { error: insertError } = await supabase
+        .from("attendance")
+        .insert([{ member_id: member.id, date: today }]);
+
+      if (insertError) {
+        // Handle the unique constraint error (Duplicate check-in)
+        if (insertError.code === '23505') { 
+          alert(`${member.name} is already checked in for today!`);
+        } else {
+          throw insertError;
+        }
+      } else {
+        // Success! Clear input and refresh stream instantly
+        alert(`Access Granted: ${member.name}`);
+        setManualSearchQuery("");
+        fetchLiveAttendance(); 
+      }
+    } catch (error: any) {
+      console.error("Manual entry error:", error);
+      alert("An error occurred while authorizing entry.");
+    }
   };
 
   return (
@@ -88,14 +122,16 @@ export default function AttendancePage() {
         <div className="bg-gray-100 border border-gray-200 rounded-3xl p-8 shadow-2xl h-[600px] flex flex-col">
           <div className="flex items-center justify-between mb-8 border-b border-gray-200 pb-4 shrink-0">
             <h3 className="text-xl font-black text-gray-900 tracking-tight">Live Entry Stream</h3>
-            <div className="flex items-center text-logo/90 text-xs font-bold tracking-wider uppercase bg-logo/90/10 px-3 py-1.5 rounded-full border border-logo/90/20">
-              <span className="h-2 w-2 rounded-full bg-logo/90 mr-2 animate-ping"></span>
-              Monitoring
+            <div className="flex items-center text-logo/90 text-xs font-bold tracking-wider uppercase bg-red-100 px-3 py-1.5 rounded-full border border-red-200">
+              <span className="h-2 w-2 rounded-full bg-red-600 mr-2 animate-ping"></span>
+              <span className="text-red-600">Monitoring</span>
             </div>
           </div>
           <div className="overflow-y-auto flex-1 pr-2 custom-scrollbar">
             {isLoading ? (
               <div className="text-center text-gray-500 text-sm py-10 font-medium">Loading stream...</div>
+            ) : recentCheckIns.length === 0 ? (
+              <div className="text-center text-gray-500 text-sm py-10 font-medium">No check-ins today yet.</div>
             ) : (
               <table className="w-full text-left">
                 <thead className="sticky top-0 bg-gray-100 backdrop-blur-sm z-10">
@@ -245,12 +281,12 @@ export default function AttendancePage() {
                   
                   <div className="space-y-6">
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-gray-500 block mb-2">Member ID or Name</label>
+                      <label className="text-xs font-bold uppercase tracking-wider text-gray-500 block mb-2">Member Phone or Name</label>
                       <input 
                         type="text" 
                         value={manualSearchQuery}
                         onChange={(e) => setManualSearchQuery(e.target.value)}
-                        placeholder="e.g. Yagna Bhatt"
+                        placeholder="e.g. 9876543210 or Yagna Bhatt"
                         className="w-full px-5 py-4 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-black focus:ring-1 focus:ring-black transition-all text-gray-900 placeholder:text-gray-400 shadow-sm"
                       />
                     </div>
