@@ -57,7 +57,7 @@ export default function Home() {
 
     // Device Detection Logic
     setMounted(true);
-    const userAgent = window.navigator.userAgent || window.opera || "";
+    const userAgent = window.navigator.userAgent || (window as any).opera || "";
     if (/android|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase())) {
       setIsMobile(true);
     }
