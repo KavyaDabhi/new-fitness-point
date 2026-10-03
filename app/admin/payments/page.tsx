@@ -1,10 +1,14 @@
 "use client";
 
-import { ShieldCheck, Search, User, Calendar, CheckCircle2, CreditCard, Wallet, Smartphone, X } from "lucide-react";
+import { ShieldCheck, Search, User, Calendar, CheckCircle2, CreditCard, Wallet, Smartphone, X, QrCode } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import Script from "next/script";
+import { QRCodeSVG } from "qrcode.react"; // 👈 Added this import
 import { supabase } from "@/lib/supabase";
+
+// 🚨 REPLACE THIS WITH YOUR GYM'S ACTUAL UPI ID 🚨
+const GYM_UPI_ID = "9824030321@okbizaxis"; 
 
 export default function PaymentsPage() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -20,6 +24,9 @@ export default function PaymentsPage() {
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [customAmount, setCustomAmount] = useState<number>(0);
   const [selectedMethod, setSelectedMethod] = useState("Cash (Manual)");
+
+  // UPI QR Code Modal State
+  const [showUpiModal, setShowUpiModal] = useState(false);
 
   // Load plans on mount
   useEffect(() => {
@@ -66,7 +73,6 @@ export default function PaymentsPage() {
     const today = new Date();
     const currentEnd = currentLastDate ? new Date(currentLastDate) : today;
     
-    // If expired, start from today. If active, extend from current end date.
     const baseDate = currentEnd < today ? today : currentEnd;
     const newEnd = new Date(baseDate.getTime());
 
@@ -89,11 +95,16 @@ export default function PaymentsPage() {
     const plan = plans.find(p => p.id.toString() === selectedPlanId);
     if (!plan) return;
 
-    // IF NOT RAZORPAY (Cash/Direct UPI Override)
-    if (selectedMethod !== "Razorpay Gateway") {
-      const confirmMsg = `Are you sure you want to log a ${selectedMethod} payment of ₹${customAmount} for ${selectedMember.name}?`;
+    // 🚨 IF UPI: Show QR code modal instead of submitting immediately
+    if (selectedMethod === "UPI (Manual)") {
+      setShowUpiModal(true);
+      return;
+    }
+
+    // IF CASH: Show standard confirm dialog
+    if (selectedMethod === "Cash (Manual)") {
+      const confirmMsg = `Are you sure you want to log a Cash payment of ₹${customAmount} for ${selectedMember.name}?`;
       if (!window.confirm(confirmMsg)) return;
-      
       await executeDatabaseRenewal(plan);
       return;
     }
@@ -142,7 +153,7 @@ export default function PaymentsPage() {
           plan: plan.title,
           amount: customAmount,
           status: 'ACTIVE',
-          duration: plan.title, // or fallback to a custom duration string
+          duration: plan.title, 
           last_date: newLastDate,
         })
         .eq('id', selectedMember.id);
@@ -156,6 +167,7 @@ export default function PaymentsPage() {
       setSearchQuery("");
       setSelectedPlanId("");
       setCustomAmount(0);
+      setShowUpiModal(false); // Close QR modal if open
     } catch (error: any) {
       console.error("DB Update Error", error);
       alert("Payment noted, but failed to update member record: " + error.message);
@@ -163,6 +175,9 @@ export default function PaymentsPage() {
       setIsProcessing(false);
     }
   };
+
+  // Generate the standard UPI Intent URL
+  const upiIntentUrl = `upi://pay?pa=${GYM_UPI_ID}&pn=New%20Fitness%20Point&am=${customAmount}&cu=INR`;
 
   return (
     <motion.div 
@@ -172,6 +187,66 @@ export default function PaymentsPage() {
     >
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
+      {/* --- UPI QR CODE MODAL --- */}
+      <AnimatePresence>
+        {showUpiModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl relative flex flex-col items-center text-center"
+            >
+              <button 
+                onClick={() => setShowUpiModal(false)}
+                className="absolute top-4 right-4 bg-gray-100 text-gray-500 hover:text-gray-900 rounded-full p-2"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="w-12 h-12 bg-logo/10 text-logo rounded-full flex items-center justify-center mb-4">
+                <QrCode className="w-6 h-6" />
+              </div>
+              <h2 className="text-xl font-black text-gray-900 tracking-tight uppercase mb-1">Scan to Pay</h2>
+              <p className="text-gray-500 text-sm font-medium mb-6">Ask {selectedMember?.name} to scan this code.</p>
+
+              <div className="bg-white border-4 border-gray-100 p-4 rounded-3xl shadow-sm mb-6">
+                <QRCodeSVG 
+                  value={upiIntentUrl} 
+                  size={200} 
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  level="Q"
+                />
+              </div>
+
+              <div className="bg-gray-50 w-full p-4 rounded-xl mb-6 border border-gray-200">
+                <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Total Amount</p>
+                <p className="text-3xl font-black text-gray-900">₹{customAmount}</p>
+              </div>
+
+              <button 
+                onClick={() => executeDatabaseRenewal(plans.find(p => p.id.toString() === selectedPlanId))}
+                disabled={isProcessing}
+                className="w-full bg-black text-white py-4 rounded-xl font-black text-sm tracking-widest uppercase hover:bg-gray-800 transition-colors flex justify-center items-center gap-2"
+              >
+                {isProcessing ? (
+                  <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <><CheckCircle2 className="w-5 h-5" /> Payment Received</>
+                )}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MAIN PAGE CONTENT --- */}
       <div className="flex items-center gap-4 border-b border-gray-200 pb-6">
         <div className="w-14 h-14 bg-logo/10 border border-logo/20 text-logo rounded-2xl flex items-center justify-center shadow-sm">
           <ShieldCheck className="w-7 h-7" />
@@ -275,7 +350,7 @@ export default function PaymentsPage() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Payment Details (Only active if member selected) */}
+        {/* RIGHT COLUMN: Payment Details */}
         <div className={`space-y-6 transition-all duration-300 ${!selectedMember ? 'opacity-40 pointer-events-none grayscale' : 'opacity-100'}`}>
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">2. Renewal Plan</h3>
@@ -344,7 +419,7 @@ export default function PaymentsPage() {
               {isProcessing ? (
                 <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
               ) : (
-                <><CheckCircle2 className="w-5 h-5" /> Confirm & Renew</>
+                <><CheckCircle2 className="w-5 h-5" /> {selectedMethod === "UPI (Manual)" ? "Generate QR Code" : "Confirm & Renew"}</>
               )}
             </button>
           </div>
