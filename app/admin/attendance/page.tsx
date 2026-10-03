@@ -12,7 +12,6 @@ export default function AttendancePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [manualSearchQuery, setManualSearchQuery] = useState("");
 
-  // Extracted fetch function so we can call it after manual entry
   const fetchLiveAttendance = async () => {
     try {
       const { data, error } = await supabase
@@ -20,10 +19,10 @@ export default function AttendancePage() {
         .select(`
           id,
           time_marked,
+          check_out_time,
           members!inner (
             name,
-            plan,
-            status
+            plan
           )
         `)
         .order("time_marked", { ascending: false })
@@ -33,13 +32,20 @@ export default function AttendancePage() {
 
       if (data) {
         const formattedData = data.map((record: any) => {
-          const timeObj = new Date(record.time_marked);
+          const checkInTime = new Date(record.time_marked).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          
+          const checkOutTime = record.check_out_time 
+            ? new Date(record.check_out_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) 
+            : null;
+
           return {
             id: record.id,
             name: record.members?.name || "Unknown Member",
-            time: timeObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            // If checked out, show "11:00 AM - 12:30 PM". Otherwise just show "11:00 AM"
+            time: checkOutTime ? `${checkInTime} - ${checkOutTime}` : checkInTime,
             plan: record.members?.plan || "Standard", 
-            status: record.members?.status || "Active",
+            // Dynamically flip the status badge
+            status: record.check_out_time ? "Checked Out" : "Active",
           };
         });
         setRecentCheckIns(formattedData);
@@ -53,18 +59,14 @@ export default function AttendancePage() {
 
   useEffect(() => {
     fetchLiveAttendance();
-
-    // Poll for new check-ins every 30 seconds
     const interval = setInterval(fetchLiveAttendance, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // --- NEW: FULLY FUNCTIONAL MANUAL ENTRY ---
   const handleManualEntry = async () => {
     if (!manualSearchQuery.trim()) return;
     
     try {
-      // 1. Find the member by name or phone number
       const { data: members, error: searchError } = await supabase
         .from("members")
         .select("id, name")
@@ -81,24 +83,31 @@ export default function AttendancePage() {
       const member = members[0];
       const today = new Date().toLocaleDateString('en-CA');
 
-      // 2. Insert into attendance table
       const { error: insertError } = await supabase
         .from("attendance")
         .insert([{ member_id: member.id, date: today }]);
 
       if (insertError) {
-        // Handle the unique constraint error (Duplicate check-in)
         if (insertError.code === '23505') { 
-          alert(`${member.name} is already checked in for today!`);
+          // Manual Check Out Trigger
+          const { error: updateError } = await supabase
+            .from("attendance")
+            .update({ check_out_time: new Date().toISOString() })
+            .eq("member_id", member.id)
+            .eq("date", today)
+            .is("check_out_time", null);
+            
+          if (updateError) throw updateError;
+          alert(`Checked Out: ${member.name}`);
         } else {
           throw insertError;
         }
       } else {
-        // Success! Clear input and refresh stream instantly
         alert(`Access Granted: ${member.name}`);
-        setManualSearchQuery("");
-        fetchLiveAttendance(); 
       }
+      
+      setManualSearchQuery("");
+      fetchLiveAttendance(); 
     } catch (error: any) {
       console.error("Manual entry error:", error);
       alert("An error occurred while authorizing entry.");
@@ -151,7 +160,9 @@ export default function AttendancePage() {
                       <td className="py-4 font-medium text-gray-500">{row.time}</td>
                       <td className="py-4">
                         <span className={`inline-flex px-2 py-1 rounded text-[10px] font-bold tracking-wider uppercase border ${
-                          row.status === "Active" ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-red-500/10 text-red-600 border-red-500/20"
+                          row.status === "Checked Out" 
+                            ? "bg-gray-200 text-gray-600 border-gray-300" 
+                            : "bg-green-500/10 text-green-600 border-green-500/20"
                         }`}>
                           {row.status}
                         </span>
@@ -166,8 +177,6 @@ export default function AttendancePage() {
 
         {/* Action Panel */}
         <div className="bg-gray-100/50 border border-gray-200 rounded-3xl p-8 flex flex-col h-[600px] relative overflow-hidden shadow-2xl">
-          
-          {/* Tab Navigation */}
           <div className="flex bg-white/40 p-1.5 rounded-2xl mb-8 relative z-10">
             {[
               { id: "scanner", label: "QR Scanner", icon: Scan },
@@ -203,24 +212,18 @@ export default function AttendancePage() {
                 >
                   <div className="relative w-64 h-64 bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-2xl mb-8 flex items-center justify-center group">
                     <Camera className="w-12 h-12 text-gray-300 absolute z-0" />
-                    
-                    {/* Simulated Scanner UI */}
                     <div className="absolute inset-4 border-2 border-dashed border-gray-300 rounded-2xl z-10"></div>
-                    
-                    {/* Scanning Laser Animation */}
                     <motion.div 
                       animate={{ y: [0, 200, 0] }}
                       transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
                       className="absolute top-4 left-4 right-4 h-0.5 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] z-20"
                     />
-                    
                     <div className="absolute inset-0 bg-white/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-30 backdrop-blur-sm">
                       <button className="bg-black text-white px-6 py-2 rounded-full font-bold text-sm tracking-wider shadow-lg">
                         Activate Camera
                       </button>
                     </div>
                   </div>
-                  
                   <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-2">Member Check-In</h3>
                   <p className="text-gray-500 text-sm font-medium">Point the camera at the member's app QR code to log their attendance instantly.</p>
                 </motion.div>
@@ -286,7 +289,7 @@ export default function AttendancePage() {
                         type="text" 
                         value={manualSearchQuery}
                         onChange={(e) => setManualSearchQuery(e.target.value)}
-                        placeholder="e.g. 9876543210 or Yagna Bhatt"
+                        placeholder="e.g. 9876543210 or Kavya Dabhi"
                         className="w-full px-5 py-4 text-sm bg-white border border-gray-200 rounded-xl outline-none focus:border-black focus:ring-1 focus:ring-black transition-all text-gray-900 placeholder:text-gray-400 shadow-sm"
                       />
                     </div>
@@ -303,7 +306,6 @@ export default function AttendancePage() {
             </AnimatePresence>
           </div>
         </div>
-
       </div>
     </motion.div>
   );
