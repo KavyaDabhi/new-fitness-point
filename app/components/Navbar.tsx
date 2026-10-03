@@ -169,7 +169,7 @@ export default function Navbar() {
               transition={{ delay: 0.4 }}
               className="mt-auto flex flex-col gap-3"
             >
-              <Link href={isAdmin ? "/dashboard" : (user ? "/member" : "/login")} onClick={() => setIsOpen(false)}>
+              <Link href={isAdmin ? "/admin" : (user ? "/member" : "/login")} onClick={() => setIsOpen(false)}>
                 <button className="w-full flex justify-center items-center gap-2 bg-red-600 text-white px-6 py-5 rounded-2xl font-black text-lg tracking-widest uppercase shadow-[0_0_30px_rgba(229,1,0,0.4)] transition-transform active:scale-95">
                   {isAdmin ? <LayoutDashboard className="w-5 h-5" /> : <User className="w-5 h-5" />}
                   {isAdmin ? "Admin Dashboard" : (user ? "Enter Portal" : "Member Login")}
