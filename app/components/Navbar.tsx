@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, User, LogOut, LayoutDashboard } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -12,11 +12,12 @@ export default function Navbar() {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
   // --- ADD YOUR EXACT ADMIN EMAILS HERE ---
   const adminEmails = [
     "newfitnesspointgym@gmail.com", 
-    "dabhikavy189@gmail.com" // replace with your actual admin login email
+    "dabhikavy189@gmail.com" 
   ];
 
   useEffect(() => {
@@ -25,7 +26,6 @@ export default function Navbar() {
       const currentUser = data?.user || null;
       setUser(currentUser);
       
-      // Check if the logged-in user is an admin
       if (currentUser?.email && adminEmails.includes(currentUser.email.toLowerCase())) {
         setIsAdmin(true);
       } else {
@@ -55,7 +55,17 @@ export default function Navbar() {
     } else {
       document.body.style.overflow = "auto";
     }
+    
+    // Cleanup in case the component unmounts while menu is open
+    return () => {
+      document.body.style.overflow = "auto";
+    };
   }, [isOpen]);
+
+  // Close the mobile menu automatically if the route changes
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
 
   const handleLogout = async () => {
     try {
@@ -69,6 +79,15 @@ export default function Navbar() {
       console.error("Error logging out:", error);
     }
   };
+
+  // 🚨 HIDE GLOBAL NAVBAR ON SECURE ROUTES
+  if (
+    pathname.startsWith("/admin") || 
+    pathname.startsWith("/member") || 
+    pathname.startsWith("/login")
+  ) {
+    return null; 
+  }
 
   const navLinks = [
     { name: "Home", path: "/" },
