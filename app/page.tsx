@@ -97,7 +97,7 @@ export default function Home() {
         const currentUser = session?.user;
         if (currentUser) {
           if (currentUser.email && adminEmails.includes(currentUser.email.toLowerCase())) {
-            setActionRoute("/dashboard");
+            setActionRoute("/admin");
           } else {
             setActionRoute("/member");
           }
