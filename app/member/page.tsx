@@ -94,19 +94,27 @@ export default function SingleMemberPage() {
   };
 
   // --- ATTENDANCE SCAN LOGIC (FIXED FOR DB SYNC) ---
+  // --- SMART ATTENDANCE SCAN LOGIC (CHECK-IN & CHECK-OUT) ---
   const handleQRScan = async (result: any) => {
     if (result && result.length > 0 && scanStatus !== "success") {
-      setScanStatus("success");
       
-      // We don't strictly need to check what the QR code says, 
-      // just scanning the gym's desk QR triggers this check-in!
       const qrData = result[0].rawValue; 
+      
+      // Security Check
+      if (!qrData.includes("new-fitness-point") && !qrData.includes("TMP-")) {
+        alert("Invalid QR Code. Please scan the official screen at the front desk.");
+        setScanStatus("error");
+        setTimeout(() => setScanStatus("scanning"), 3000);
+        return;
+      }
+
+      setScanStatus("success");
 
       try {
         const today = new Date().toLocaleDateString('en-CA');
         
-        // Use memberData.id to match the attendance table rules
-        const { error } = await supabase
+        // 1. Try to Check In
+        const { error: insertError } = await supabase
           .from("attendance")
           .insert([
             { 
@@ -115,13 +123,23 @@ export default function SingleMemberPage() {
             }
           ]);
 
-        if (error) {
-          // If they try to scan twice in one day, Supabase blocks it
-          if (error.code === '23505') {
-            alert("You are already checked in for today!");
+        if (insertError) {
+          // 2. If already checked in today, perform a Check Out instead!
+          if (insertError.code === '23505') {
+            const { error: updateError } = await supabase
+              .from("attendance")
+              .update({ check_out_time: new Date().toISOString() })
+              .eq("member_id", memberData.id)
+              .eq("date", today)
+              .is("check_out_time", null); // Only update if they haven't checked out yet
+
+            if (updateError) throw updateError;
+            alert("Checked Out! See you next time. 💪");
           } else {
-            throw error;
+            throw insertError;
           }
+        } else {
+          alert("Checked In! Have a great workout. 🔥");
         }
 
         setTimeout(() => {
