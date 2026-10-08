@@ -31,7 +31,7 @@ export default function Login() {
       } else {
         localStorage.setItem("userAuth", "true");
         
-        if (email.toLowerCase() === "dabhikavy189@gmail.com") {
+        if (email.toLowerCase() === "dabhikavy189@gmail.com1","newfitnesspoint@gmail.com") {
           router.push("/admin");
         } else {
           router.push("/member");
