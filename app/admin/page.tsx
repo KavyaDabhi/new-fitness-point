@@ -4,6 +4,7 @@ import { Users, Calendar, AlertCircle, Banknote, Dumbbell, Tag, Percent, Edit3, 
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase"; 
+import Link from "next/link"; // 👈 Added Link import
 
 // --- FALLBACK OFFERS ---
 const defaultOffers = [
@@ -72,7 +73,6 @@ export default function DashboardOverview() {
         .select("status, amount, join_date, joined_date");
 
       if (memberError) {
-        // Silenced console.error to prevent Next.js red screen overlay
         setActiveMembersCount(0);
         setPendingRenewalsCount(0);
         setMonthlyRevenue("₹0");
@@ -113,7 +113,6 @@ export default function DashboardOverview() {
       if (!attError) {
         setTodaysAttendance(attendanceCount || 0);
       } else {
-        // Silenced console.error to prevent Next.js red screen overlay
         setTodaysAttendance(0);
       }
 
@@ -124,7 +123,6 @@ export default function DashboardOverview() {
         .order("order_index", { ascending: true });
         
       if (planError) {
-        // Silenced console.error to prevent Next.js red screen overlay
         setPlans(defaultOffers); 
       } else if (planData && planData.length > 0) {
         setPlans(planData);
@@ -200,14 +198,21 @@ export default function DashboardOverview() {
             <p className="text-gray-500 font-bold uppercase tracking-widest text-xs bg-gray-200 inline-block px-3 py-1 rounded-sm border border-gray-300">
               Training protocol active.
             </p>
+            
+            {/* 🚨 WIRED BUTTONS 🚨 */}
             <div className="mt-8 flex gap-4">
-              <button className="bg-logo hover:bg-logo/80 text-white px-8 py-3 text-sm font-bold rounded-xl transition-all shadow-lg hover:shadow-lg">
-                Start Session
-              </button>
-              <button className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-900 px-8 py-3 text-sm font-bold rounded-xl transition-all shadow-sm">
-                View History
-              </button>
+              <Link href="/admin/sessions">
+                <button className="bg-logo hover:bg-logo/80 text-white px-8 py-3 text-sm font-bold rounded-xl transition-all shadow-lg hover:shadow-lg">
+                  Start Session
+                </button>
+              </Link>
+              <Link href="/admin/attendance">
+                <button className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-900 px-8 py-3 text-sm font-bold rounded-xl transition-all shadow-sm">
+                  View History
+                </button>
+              </Link>
             </div>
+            
           </div>
         </div>
         
@@ -225,7 +230,7 @@ export default function DashboardOverview() {
         </div>
       </div>
 
-      {/* Metric Cards - NOW FULLY DYNAMIC WITH UI BYPASS */}
+      {/* Metric Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {[
           { title: "Total Active Members", value: activeMembersCount, icon: Users, stat: "LIVE" },

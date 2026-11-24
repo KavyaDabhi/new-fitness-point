@@ -12,9 +12,11 @@ export default function AttendancePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [manualSearchQuery, setManualSearchQuery] = useState("");
 
-  // --- DYNAMIC DAILY QR CODE GENERATOR ---
-  const today = new Date().toLocaleDateString('en-CA'); // Format: YYYY-MM-DD
-  const dailyQrString = `new-fitness-point-desk-${today}`;
+  // Today's date for manual attendance logging (YYYY-MM-DD)
+  const today = new Date().toLocaleDateString('en-CA');
+
+  // --- PERMANENT FRONT DESK QR URL (Works with any phone camera) ---
+  const permanentQrUrl = "https://new-fitness-point-seven.vercel.app/checkin";
 
   const fetchLiveAttendance = async () => {
     try {
@@ -181,7 +183,7 @@ export default function AttendancePage() {
           <div className="flex bg-white/40 p-1 md:p-1.5 rounded-xl md:rounded-2xl mb-6 md:mb-8 relative z-10 overflow-x-auto custom-scrollbar no-scrollbar">
             {[
               { id: "scanner", label: "QR Scanner", icon: Scan },
-              { id: "generate", label: "Daily Desk QR", icon: QrCode },
+              { id: "generate", label: "Desk QR", icon: QrCode },
               { id: "manual", label: "Manual Entry", icon: Search },
             ].map(tab => (
               <button
@@ -230,7 +232,7 @@ export default function AttendancePage() {
                 </motion.div>
               )}
 
-              {/* GENERATE QR UI (DYNAMIC DAILY) */}
+              {/* GENERATE QR UI (PERMANENT) */}
               {activeTab === "generate" && (
                 <motion.div 
                   key="generate"
@@ -240,27 +242,27 @@ export default function AttendancePage() {
                   className="h-full flex flex-col px-2"
                 >
                   <div className="mb-4 md:mb-6 text-center">
-                    <h3 className="text-lg md:text-xl font-black text-gray-900 tracking-tight mb-1 md:mb-2">Front Desk QR Code</h3>
-                    <p className="text-gray-500 text-[10px] md:text-sm font-medium">Members scan this from their phones to check in.</p>
+                    <h3 className="text-lg md:text-xl font-black text-gray-900 tracking-tight mb-1 md:mb-2">Permanent Front Desk QR</h3>
+                    <p className="text-gray-500 text-[10px] md:text-sm font-medium">Members scan this with their normal phone camera to check in or out.</p>
                   </div>
                   
                   <div className="flex-1 flex flex-col items-center justify-center bg-white border border-gray-200 rounded-[1.5rem] p-6 md:p-8 shadow-sm">
-                    <div className="bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl shadow-inner mb-4 border border-gray-100">
+                    <div className="bg-white p-3 md:p-4 rounded-xl md:rounded-2xl shadow-inner mb-4 border border-gray-200">
                       <QRCodeSVG 
-                        value={dailyQrString} 
+                        value={permanentQrUrl} 
                         size={180} 
-                        bgColor="transparent"
+                        bgColor="#ffffff"
                         fgColor="#000000"
-                        level="Q"
+                        level="H"
                         className="md:w-[200px] md:h-[200px]"
                       />
                     </div>
                     <div className="text-center mt-2">
                       <p className="text-green-600 bg-green-50 px-3 py-1 rounded-full font-black text-sm md:text-base border border-green-200 inline-block mb-1">
-                        Active Today
+                        Permanent • Ready to Print
                       </p>
                       <p className="text-gray-500 text-[9px] md:text-xs font-bold uppercase tracking-widest mt-1">
-                        Refreshes automatically at midnight
+                        Never expires • Works with any camera
                       </p>
                     </div>
                   </div>
