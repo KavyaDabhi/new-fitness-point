@@ -21,6 +21,7 @@ import {
   CalendarCheck,
   Users,
   Award,
+  Bell,
 } from "lucide-react";
 import { Scanner } from "@yudiel/react-qr-scanner";
 
@@ -197,12 +198,12 @@ export default function SingleMemberPage() {
               .is("check_out_time", null);
 
             if (updateError) throw updateError;
-            alert("Checked Out! See you next time. 💪");
+            alert("Checked Out! See you next time.");
           } else {
             throw insertError;
           }
         } else {
-          alert("Checked In! Have a great workout. 🔥");
+          alert("Checked In! Have a great workout.");
         }
 
         await fetchMemberAttendance(memberData.id);
@@ -390,6 +391,7 @@ export default function SingleMemberPage() {
 
   const subStatus = calculateSubscription();
   const safeLastDate = formatDate(dynamicLastDate);
+  const isExpiringSoon = !safeLastDate || subStatus.daysLeft <= 7;
 
   const programsList = ["Fitness", "Weight Mana'nt", "Personal Traning", "Physiotherapy", "Medical Condition", "Slimming", "other"];
   const isCurrentPlan = (prog: string) => {
@@ -556,6 +558,42 @@ export default function SingleMemberPage() {
 
       {/* --- MAIN CONTENT AREA --- */}
       <div className="w-full max-w-[900px] px-4 pt-8 z-10 font-sans">
+        {/* --- PAYMENT EXPIRY NOTIFICATION BANNER --- */}
+        {isExpiringSoon && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-[#e50100]/15 border border-[#e50100]/40 rounded-2xl p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-[#e50100] text-white flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(229,1,0,0.4)]">
+                <Bell className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs md:text-sm font-black text-white uppercase tracking-wider">
+                  {!safeLastDate || subStatus.daysLeft <= 0
+                    ? "Payment Due: Membership Expired"
+                    : `Payment Reminder: ${subStatus.daysLeft} Day${subStatus.daysLeft === 1 ? "" : "s"} Left`}
+                </p>
+                <p className="text-xs text-gray-300 mt-0.5">
+                  Renew your <span className="font-bold text-white">{memberData.plan || "Membership"}</span>{" "}
+                  {memberData.amount ? `(₹${memberData.amount})` : ""}
+                  {safeLastDate ? ` before ${safeLastDate}` : ""} to keep uninterrupted gym access.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setActiveTab("overview");
+                setShowPaymentOptions(true);
+              }}
+              className="bg-[#e50100] hover:bg-red-700 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all shrink-0 w-full sm:w-auto cursor-pointer"
+            >
+              Renew Now
+            </button>
+          </motion.div>
+        )}
+
         <AnimatePresence mode="wait">
           {/* ================= TAB 1: OVERVIEW ================= */}
           {activeTab === "overview" && (
@@ -612,7 +650,7 @@ export default function SingleMemberPage() {
                       setShowScanner(true);
                       setScanStatus("scanning");
                     }}
-                    className="mt-6 w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
+                    className="mt-6 w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3.5 rounded-xl transition-colors flex items-center justify-center gap-2 uppercase tracking-widest text-sm cursor-pointer"
                   >
                     <QrCode className="w-4 h-4 text-[#e50100]" /> Check In (Scan QR)
                   </button>
@@ -636,7 +674,7 @@ export default function SingleMemberPage() {
                     {!showPaymentOptions ? (
                       <button
                         onClick={() => setShowPaymentOptions(true)}
-                        className="w-full bg-[#e50100] hover:bg-red-700 text-white font-bold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(229,1,0,0.3)] hover:shadow-[0_0_30px_rgba(229,1,0,0.5)] hover:-translate-y-1 flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
+                        className="w-full bg-[#e50100] hover:bg-red-700 text-white font-bold py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(229,1,0,0.3)] hover:shadow-[0_0_30px_rgba(229,1,0,0.5)] hover:-translate-y-1 flex items-center justify-center gap-2 uppercase tracking-widest text-sm cursor-pointer"
                       >
                         <CreditCard className="w-5 h-5" /> Pay Securely
                       </button>
@@ -645,20 +683,20 @@ export default function SingleMemberPage() {
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 text-center">Select Payment App</p>
 
                         <div className="grid grid-cols-2 gap-2">
-                          <button onClick={() => handleUPIIntent("gpay")} className="bg-white/10 hover:bg-white/20 border border-white/5 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors">
+                          <button onClick={() => handleUPIIntent("gpay")} className="bg-white/10 hover:bg-white/20 border border-white/5 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer">
                             <span className="font-bold text-sm text-white">GPay</span>
                           </button>
 
-                          <button onClick={() => handleUPIIntent("phonepe")} className="bg-white/10 hover:bg-white/20 border border-white/5 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors">
+                          <button onClick={() => handleUPIIntent("phonepe")} className="bg-white/10 hover:bg-white/20 border border-white/5 py-3 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer">
                             <span className="font-bold text-sm text-[#5f259f]">PhonePe</span>
                           </button>
                         </div>
 
-                        <button onClick={() => handleUPIIntent("generic")} className="w-full bg-white/5 hover:bg-white/10 border border-white/5 py-3 rounded-lg font-bold text-sm text-gray-300 transition-colors">
+                        <button onClick={() => handleUPIIntent("generic")} className="w-full bg-white/5 hover:bg-white/10 border border-white/5 py-3 rounded-lg font-bold text-sm text-gray-300 transition-colors cursor-pointer">
                           Other UPI Apps
                         </button>
 
-                        <button onClick={handlePayment} disabled={isProcessing} className="w-full mt-2 bg-transparent hover:bg-white/5 border border-gray-600 py-3 rounded-lg font-bold text-xs uppercase tracking-widest text-gray-400 transition-colors disabled:opacity-50">
+                        <button onClick={handlePayment} disabled={isProcessing} className="w-full mt-2 bg-transparent hover:bg-white/5 border border-gray-600 py-3 rounded-lg font-bold text-xs uppercase tracking-widest text-gray-400 transition-colors disabled:opacity-50 cursor-pointer">
                           {isProcessing ? "Loading..." : "Pay via Cards / Netbanking"}
                         </button>
                       </motion.div>
@@ -919,7 +957,7 @@ export default function SingleMemberPage() {
                         setSelectedDay(day);
                         setCompletedExercises([]);
                       }}
-                      className={`py-3 px-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                      className={`py-3 px-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all border cursor-pointer ${
                         isActive
                           ? "bg-[#e50100] border-[#e50100] text-white shadow-[0_0_15px_rgba(229,1,0,0.4)]"
                           : "bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
@@ -1101,7 +1139,7 @@ export default function SingleMemberPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl transition-all ${
+                className={`flex flex-col items-center justify-center gap-1 py-2 rounded-xl transition-all cursor-pointer ${
                   isActive ? "text-[#e50100] bg-[#e50100]/10" : "text-gray-500 hover:text-gray-300"
                 }`}
               >
