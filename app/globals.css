@@ -129,3 +129,93 @@
     @apply font-sans;
   }
 }
+
+/* --- A4 WHITE-BACKGROUND PRINT STYLES --- */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #a4-registration-form,
+  #a4-registration-form * {
+    visibility: visible;
+  }
+
+  #a4-registration-form {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 18mm !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Make all white/light text dark for white paper */
+  #a4-registration-form h1,
+  #a4-registration-form h2,
+  #a4-registration-form h3,
+  #a4-registration-form span,
+  #a4-registration-form p,
+  #a4-registration-form td,
+  #a4-registration-form th {
+    color: #111111 !important;
+  }
+
+  /* Keep subtle gray for field labels */
+  #a4-registration-form .text-gray-400,
+  #a4-registration-form .text-gray-500 {
+    color: #4b5563 !important;
+  }
+
+  /* Convert white translucent borders to crisp print lines */
+  #a4-registration-form [class*="border-white"] {
+    border-color: #9ca3af !important;
+  }
+
+  /* Keep the signature red gym divider line */
+  #a4-registration-form .border-\[\#e50100\] {
+    border-color: #e50100 !important;
+  }
+
+  /* Table styling for white paper */
+  #a4-registration-form thead tr {
+    background-color: #f3f4f6 !important;
+  }
+
+  #a4-registration-form [class*="bg-white/"],
+  #a4-registration-form [class*="bg-black/"] {
+    background-color: transparent !important;
+  }
+
+  /* Keep watermark light and visible on white paper */
+  #a4-registration-form img {
+    opacity: 0.08 !important;
+    mix-blend-mode: multiply !important;
+    filter: grayscale(100%) !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
