@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { isAdmin, isTrainer } from "@/lib/roles";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -106,10 +107,14 @@ export default function SingleMemberPage() {
           return;
         }
 
-        // --- ADMIN BOUNCER ---
-        const adminEmails = ["newfitnesspointgym@gmail.com", "dabhikavy189@gmail.com"];
-        if (user.email && adminEmails.includes(user.email.toLowerCase())) {
+        // --- ADMIN & TRAINER BOUNCER ---
+        if (isAdmin(user.email)) {
           router.push("/admin");
+          return;
+        }
+
+        if (isTrainer(user.email)) {
+          router.push("/trainer");
           return;
         }
 
@@ -335,20 +340,28 @@ export default function SingleMemberPage() {
     const start = new Date(joinDateStr);
     if (isNaN(start.getTime())) return dbLastDate;
 
-    const plan = planStr.toLowerCase();
+    const plan = planStr.trim().toLowerCase();
     const end = new Date(start.getTime());
 
-    if (plan.includes("1 year") || plan.includes("yearly") || plan.includes("annual")) {
+    const monthMatch = plan.match(/(\d+)\s*(month|months|mo)/);
+    const yearMatch = plan.match(/(\d+)\s*(year|years|yr)/);
+
+    if (monthMatch) {
+      end.setMonth(end.getMonth() + parseInt(monthMatch[1], 10));
+    } else if (yearMatch) {
+      end.setFullYear(end.getFullYear() + parseInt(yearMatch[1], 10));
+    } else if (plan.includes("yearly") || plan.includes("annual")) {
       end.setFullYear(end.getFullYear() + 1);
-    } else if (plan.includes("6 month") || plan.includes("half")) {
+    } else if (plan.includes("half")) {
       end.setMonth(end.getMonth() + 6);
-    } else if (plan.includes("3 month") || plan.includes("quarter")) {
+    } else if (plan.includes("quarter")) {
       end.setMonth(end.getMonth() + 3);
-    } else if (plan.includes("1 month") || plan.includes("monthly")) {
+    } else if (plan.includes("monthly")) {
       end.setMonth(end.getMonth() + 1);
     } else {
       return dbLastDate;
     }
+
     return end.toISOString();
   };
 
@@ -909,7 +922,7 @@ export default function SingleMemberPage() {
                                 <td className="border-r border-white/10 text-left font-bold pl-6 text-white tracking-wide uppercase">
                                   {prog === "other" ? memberData.plan : prog}
                                 </td>
-                                <td className="border-r border-white/10 font-medium text-gray-300">{memberData.duration || "-"}</td>
+                                <td className="border-r border-white/10 font-medium text-gray-300">{memberData.duration || memberData.plan || "-"}</td>
                                 <td className="border-r border-white/10 font-medium text-gray-300">{formatDate(memberData.join_date || memberData.joined_date) || "-"}</td>
                                 <td className="border-r border-white/10 font-medium text-gray-300">{formatDate(dynamicLastDate) || "-"}</td>
                                 <td className="font-bold text-white tracking-wider">{memberData.amount ? `₹${memberData.amount}` : "-"}</td>

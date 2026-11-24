@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { canAccessTrainerPortal } from "@/lib/roles";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -26,14 +27,6 @@ interface Exercise {
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-// Add your gym trainers' emails here (Admins can also access this portal)
-const TRAINER_EMAILS = [
-  "trainer1@newfitnesspoint.com",
-  "trainer2@newfitnesspoint.com",
-  "newfitnesspointgym@gmail.com",
-  "dabhikavy189@gmail.com",
-];
 
 export default function TrainerPortal() {
   const [trainerEmail, setTrainerEmail] = useState("");
@@ -67,13 +60,12 @@ export default function TrainerPortal() {
           return;
         }
 
-        const email = user.email?.toLowerCase() || "";
-        if (!TRAINER_EMAILS.includes(email)) {
+        if (!canAccessTrainerPortal(user.email)) {
           router.push("/member");
           return;
         }
 
-        setTrainerEmail(email);
+        setTrainerEmail(user.email?.toLowerCase() || "");
 
         const { data, error } = await supabase
           .from("members")
@@ -384,7 +376,7 @@ export default function TrainerPortal() {
                     min="1"
                     value={exSets}
                     onChange={(e) => setExSets(e.target.value)}
-                    className="w-full bg-white/5 border border-white/15 focus:border-[#e50100] rounded-xl px-3 py-2.5 text-sm text-white outline-none text-center"
+                    className="w-full bg-white/5 border border-white/15 focus:border-[#e50100] rounded-xl px-3.5 py-2.5 text-sm text-white outline-none text-center"
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -397,7 +389,7 @@ export default function TrainerPortal() {
                     value={exReps}
                     onChange={(e) => setExReps(e.target.value)}
                     placeholder="10-12"
-                    className="w-full bg-white/5 border border-white/15 focus:border-[#e50100] rounded-xl px-3 py-2.5 text-sm text-white outline-none text-center"
+                    className="w-full bg-white/5 border border-white/15 focus:border-[#e50100] rounded-xl px-3.5 py-2.5 text-sm text-white outline-none text-center"
                   />
                 </div>
                 <div className="sm:col-span-2">

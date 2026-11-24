@@ -6,12 +6,7 @@ import { ArrowLeft, User, Lock, Mail, Phone, Check } from "lucide-react";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-
-const ADMIN_EMAILS = [
-  "dabhikavy189@gmail.com",
-  "newfitnesspointgym@gmail.com",
-  "newfitnesspoint@gmail.com",
-];
+import { isAdmin, isTrainer } from "@/lib/roles";
 
 function LoginForm() {
   const [isLogin, setIsLogin] = useState(true);
@@ -89,8 +84,10 @@ function LoginForm() {
 
         if (redirectPath) {
           router.push(redirectPath);
-        } else if (ADMIN_EMAILS.includes(cleanEmail)) {
+        } else if (isAdmin(cleanEmail)) {
           router.push("/admin");
+        } else if (isTrainer(cleanEmail)) {
+          router.push("/trainer");
         } else {
           router.push("/member");
         }

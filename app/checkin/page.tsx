@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   AlertCircle,
@@ -11,6 +12,7 @@ import {
   Clock,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { isAdmin, isTrainer } from "@/lib/roles";
 
 type CheckInStatus =
   | "loading"
@@ -19,18 +21,29 @@ type CheckInStatus =
   | "already_completed"
   | "needs_login"
   | "expired"
+  | "staff"
   | "error";
 
 export default function CheckInPage() {
   const [status, setStatus] = useState<CheckInStatus>("loading");
   const [message, setMessage] = useState("Verifying your membership...");
   const [memberName, setMemberName] = useState("");
+  const [loggedInEmail, setLoggedInEmail] = useState("");
+  const [staffRoute, setStaffRoute] = useState("/admin");
   const [timestamp, setTimestamp] = useState("");
+
+  const router = useRouter();
+
+  const handleSwitchAccount = async () => {
+    await supabase.auth.signOut();
+    router.push("/login?redirect=/checkin");
+    router.refresh();
+  };
 
   useEffect(() => {
     async function processCheckIn() {
       try {
-        // 1. Check if the member is logged in
+        // 1. Check if the user is logged in
         const {
           data: { user },
           error: authError,
@@ -42,8 +55,11 @@ export default function CheckInPage() {
           return;
         }
 
-        // 2. Look up member profile by user_id first, then fallback to email
-        let member = null;
+        const cleanEmail = user.email?.trim().toLowerCase() || "";
+        setLoggedInEmail(cleanEmail);
+
+        // 2. Look up member profile: user_id -> case-insensitive email -> full_name fallback
+        let member: any = null;
 
         const { data: byUserId } = await supabase
           .from("members")
@@ -53,11 +69,13 @@ export default function CheckInPage() {
 
         if (byUserId && byUserId.length > 0) {
           member = byUserId[0];
-        } else if (user.email) {
+        }
+
+        if (!member && cleanEmail) {
           const { data: byEmail } = await supabase
             .from("members")
             .select("id, name, status")
-            .eq("email", user.email)
+            .ilike("email", cleanEmail)
             .limit(1);
 
           if (byEmail && byEmail.length > 0) {
@@ -66,6 +84,35 @@ export default function CheckInPage() {
         }
 
         if (!member) {
+          const rawName =
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            "";
+          const nameParts = rawName.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+
+          if (nameParts.length > 0) {
+            const searchPattern = `%${nameParts.join("%")}%`;
+            const { data: byName } = await supabase
+              .from("members")
+              .select("id, name, status")
+              .ilike("name", searchPattern)
+              .limit(1);
+
+            if (byName && byName.length > 0) {
+              member = byName[0];
+            }
+          }
+        }
+
+        if (!member) {
+          // If logged in as Admin or Trainer without a member row, show staff notice
+          if (isAdmin(cleanEmail) || isTrainer(cleanEmail)) {
+            setStaffRoute(isAdmin(cleanEmail) ? "/admin" : "/trainer");
+            setStatus("staff");
+            setMessage("You're logged in with a staff account. Switch to a member account to test QR check-in.");
+            return;
+          }
+
           setStatus("error");
           setMessage("Member profile not found. Please contact the front desk.");
           return;
@@ -166,7 +213,7 @@ export default function CheckInPage() {
             </div>
             <p className="text-sm text-gray-500 font-medium">{message}</p>
             <Link href="/member" className="block">
-              <button className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors">
+              <button className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors cursor-pointer">
                 Open Member Portal
               </button>
             </Link>
@@ -195,7 +242,7 @@ export default function CheckInPage() {
             </div>
             <p className="text-sm text-gray-500 font-medium">{message}</p>
             <Link href="/member" className="block">
-              <button className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors">
+              <button className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors cursor-pointer">
                 Open Member Portal
               </button>
             </Link>
@@ -219,7 +266,7 @@ export default function CheckInPage() {
             </div>
             <p className="text-sm text-gray-500 font-medium">{message}</p>
             <Link href="/member" className="block">
-              <button className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors">
+              <button className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors cursor-pointer">
                 Open Member Portal
               </button>
             </Link>
@@ -236,10 +283,42 @@ export default function CheckInPage() {
             </h1>
             <p className="text-sm text-gray-500 font-medium">{message}</p>
             <Link href="/login?redirect=/checkin" className="block">
-              <button className="w-full bg-[#e50100] text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-colors">
+              <button className="w-full bg-[#e50100] text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-colors cursor-pointer">
                 Log In to Check In
               </button>
             </Link>
+          </>
+        )}
+
+        {status === "staff" && (
+          <>
+            <div className="w-20 h-20 bg-gray-100 text-gray-800 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-12 h-12" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight">
+                Staff Account
+              </h1>
+              {loggedInEmail && (
+                <p className="text-xs font-bold text-gray-400 mt-1 break-all">
+                  {loggedInEmail}
+                </p>
+              )}
+            </div>
+            <p className="text-sm text-gray-500 font-medium">{message}</p>
+            <div className="space-y-2.5">
+              <Link href={staffRoute} className="block">
+                <button className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors cursor-pointer">
+                  Open {staffRoute === "/admin" ? "Admin" : "Trainer"} Portal
+                </button>
+              </Link>
+              <button
+                onClick={handleSwitchAccount}
+                className="w-full bg-gray-100 text-gray-800 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                Switch Account
+              </button>
+            </div>
           </>
         )}
 
@@ -260,7 +339,7 @@ export default function CheckInPage() {
             </div>
             <p className="text-sm text-gray-500 font-medium">{message}</p>
             <Link href="/member" className="block">
-              <button className="w-full bg-[#e50100] text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-colors">
+              <button className="w-full bg-[#e50100] text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-colors cursor-pointer">
                 Renew Membership
               </button>
             </Link>
@@ -272,16 +351,31 @@ export default function CheckInPage() {
             <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
               <AlertCircle className="w-12 h-12" />
             </div>
-            <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight">
-              Check-In Failed
-            </h1>
+            <div>
+              <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight">
+                Check-In Failed
+              </h1>
+              {loggedInEmail && (
+                <p className="text-xs font-bold text-gray-400 mt-1 break-all">
+                  Logged in as: {loggedInEmail}
+                </p>
+              )}
+            </div>
             <p className="text-sm text-gray-500 font-medium">{message}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors"
-            >
-              Try Again
-            </button>
+            <div className="space-y-2.5">
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full bg-black text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-800 transition-colors cursor-pointer"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={handleSwitchAccount}
+                className="w-full bg-gray-100 text-gray-800 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-colors cursor-pointer"
+              >
+                Switch Account
+              </button>
+            </div>
           </>
         )}
       </div>
